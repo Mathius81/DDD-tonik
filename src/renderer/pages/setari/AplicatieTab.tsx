@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Button, Stack, Group, Switch, Text } from '@mantine/core';
+import { Button, Stack, Group, Switch } from '@mantine/core';
+import { IconAdjustments } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { runMutation } from '../../api/useIpc';
+import { SectionCard } from '../../components/SectionCard';
 import type { Settings } from '../../../shared/schemas/settings';
 
 export function AplicatieTab({ settings, onSaved }: { settings: Settings; onSaved: () => void }) {
@@ -20,24 +22,28 @@ export function AplicatieTab({ settings, onSaved }: { settings: Settings; onSave
   };
 
   return (
-    <Stack maw={520}>
-      <Switch
-        label="Când închid fereastra, păstrează aplicația activă în tray (lângă ceas)"
-        checked={closeToTray}
-        onChange={(e) => setCloseToTray(e.currentTarget.checked)}
-      />
-      <Text size="xs" c="dimmed">
-        Recomandat: aplicația poate verifica reminderele și afișa notificări cât timp rulează în
-        fundal.
-      </Text>
-      <Switch
-        label="Pornește DDD Manager odată cu Windows"
-        checked={launchAtStartup}
-        onChange={(e) => setLaunchAtStartup(e.currentTarget.checked)}
-      />
-      <Group justify="flex-end">
-        <Button onClick={save}>Salvează</Button>
-      </Group>
-    </Stack>
+    <SectionCard
+      title="Comportamentul aplicației"
+      description="Cum pornește și cum rămâne activă aplicația Tonik."
+      icon={<IconAdjustments size={21} stroke={1.7} />}
+      maw={640}
+    >
+      <Stack gap="md">
+        <Switch
+          label="Când închid fereastra, păstrează aplicația activă în tray (lângă ceas)"
+          description="Recomandat — aplicația poate verifica reminderele și afișa notificări în fundal."
+          checked={closeToTray}
+          onChange={(e) => setCloseToTray(e.currentTarget.checked)}
+        />
+        <Switch
+          label="Pornește Tonik odată cu Windows"
+          checked={launchAtStartup}
+          onChange={(e) => setLaunchAtStartup(e.currentTarget.checked)}
+        />
+        <Group justify="flex-end" mt="sm">
+          <Button onClick={save}>Salvează</Button>
+        </Group>
+      </Stack>
+    </SectionCard>
   );
 }

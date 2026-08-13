@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Title, Stack, SegmentedControl, Button } from '@mantine/core';
+import { Stack, SegmentedControl, Button, Card, Badge } from '@mantine/core';
+import { PageHeader } from '../../components/PageHeader';
 import { DataTable } from 'mantine-datatable';
 import { useNavigate } from 'react-router-dom';
 import { ddd } from '../../api/ddd';
@@ -26,8 +27,11 @@ export function ReminderePage() {
   );
 
   return (
-    <Stack>
-      <Title order={2}>Remindere</Title>
+    <Stack gap="lg">
+      <PageHeader
+        title="Remindere"
+        description="Notificările generate automat pentru intervențiile care ajung la termen."
+      />
 
       <SegmentedControl
         value={window}
@@ -44,6 +48,7 @@ export function ReminderePage() {
         ]}
       />
 
+      <Card withBorder shadow="sm" padding="lg">
       {!loading && data && data.total === 0 ? (
         <EmptyState
           title="Niciun reminder în această categorie."
@@ -52,6 +57,7 @@ export function ReminderePage() {
       ) : (
         <DataTable
           minHeight={200}
+          verticalSpacing="sm"
           records={data?.items ?? []}
           fetching={loading}
           totalRecords={data?.total ?? 0}
@@ -86,7 +92,22 @@ export function ReminderePage() {
             {
               accessor: 'status',
               title: 'Status',
-              render: (r) => reminderStatusLabels[r.status],
+              render: (r) => (
+                <Badge
+                  variant="light"
+                  color={
+                    r.status === 'failed'
+                      ? 'red'
+                      : r.status === 'sent'
+                        ? 'teal'
+                        : r.status === 'cancelled' || r.status === 'skipped'
+                          ? 'gray'
+                          : 'orange'
+                  }
+                >
+                  {reminderStatusLabels[r.status]}
+                </Badge>
+              ),
             },
             {
               accessor: 'actions',
@@ -112,6 +133,7 @@ export function ReminderePage() {
           ]}
         />
       )}
+      </Card>
     </Stack>
   );
 }

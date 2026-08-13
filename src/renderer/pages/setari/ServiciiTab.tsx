@@ -1,8 +1,21 @@
 import { useState } from 'react';
-import { Button, Stack, Group, Table, Modal, TextInput, NumberInput, Switch, Badge } from '@mantine/core';
+import {
+  Button,
+  Stack,
+  Group,
+  Table,
+  Modal,
+  TextInput,
+  NumberInput,
+  Switch,
+  Badge,
+  Text,
+} from '@mantine/core';
 import { useForm } from '@mantine/form';
+import { IconSpray, IconPlus } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { useIpcQuery, runMutation } from '../../api/useIpc';
+import { SectionCard } from '../../components/SectionCard';
 import type { Service } from '../../../shared/schemas/service';
 
 export function ServiciiTab() {
@@ -13,11 +26,22 @@ export function ServiciiTab() {
   });
 
   return (
-    <Stack maw={640}>
-      <Group justify="flex-end">
-        <Button onClick={() => setModal({ open: true, service: null })}>+ Adaugă serviciu</Button>
-      </Group>
-      <Table>
+    <SectionCard
+      title="Servicii oferite"
+      description="Fiecare serviciu are un interval implicit de repetare, pe care îl poți ajusta la fiecare intervenție."
+      icon={<IconSpray size={21} stroke={1.7} />}
+      titleRight={
+        <Button
+          size="sm"
+          leftSection={<IconPlus size={16} />}
+          onClick={() => setModal({ open: true, service: null })}
+        >
+          Adaugă serviciu
+        </Button>
+      }
+      maw={720}
+    >
+      <Table verticalSpacing="sm" highlightOnHover>
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Serviciu</Table.Th>
@@ -29,12 +53,24 @@ export function ServiciiTab() {
         <Table.Tbody>
           {(services ?? []).map((s) => (
             <Table.Tr key={s.id}>
-              <Table.Td>{s.name}</Table.Td>
+              <Table.Td>
+                <Text size="sm" fw={550}>
+                  {s.name}
+                </Text>
+              </Table.Td>
               <Table.Td>{s.default_interval_months} luni</Table.Td>
               <Table.Td>
-                {s.active ? <Badge color="green" variant="light">Activ</Badge> : <Badge color="gray" variant="light">Inactiv</Badge>}
+                {s.active ? (
+                  <Badge color="teal" variant="light">
+                    Activ
+                  </Badge>
+                ) : (
+                  <Badge color="gray" variant="light">
+                    Inactiv
+                  </Badge>
+                )}
               </Table.Td>
-              <Table.Td>
+              <Table.Td align="right">
                 <Button
                   size="compact-sm"
                   variant="default"
@@ -57,7 +93,7 @@ export function ServiciiTab() {
           reload();
         }}
       />
-    </Stack>
+    </SectionCard>
   );
 }
 
@@ -89,7 +125,10 @@ function ServiceFormModal({
     const saved = await runMutation(
       isEdit
         ? ddd.services.update({ ...values, id: service!.id })
-        : ddd.services.create({ name: values.name, default_interval_months: values.default_interval_months }),
+        : ddd.services.create({
+            name: values.name,
+            default_interval_months: values.default_interval_months,
+          }),
       'Serviciul a fost salvat.',
     );
     if (saved) {
@@ -99,9 +138,13 @@ function ServiceFormModal({
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title={isEdit ? 'Editează serviciu' : 'Adaugă serviciu'}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={isEdit ? 'Editează serviciu' : 'Adaugă serviciu'}
+    >
       <form onSubmit={submit}>
-        <Stack>
+        <Stack gap="md">
           <TextInput label="Denumire" required {...form.getInputProps('name')} />
           <NumberInput
             label="Repetare implicită (luni)"
@@ -113,7 +156,7 @@ function ServiceFormModal({
           {isEdit && (
             <Switch label="Serviciu activ" {...form.getInputProps('active', { type: 'checkbox' })} />
           )}
-          <Group justify="flex-end">
+          <Group justify="flex-end" mt="xs">
             <Button variant="default" onClick={onClose}>
               Renunță
             </Button>

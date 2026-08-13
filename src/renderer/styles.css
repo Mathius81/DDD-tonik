@@ -1,0 +1,92 @@
+/* Stiluri globale Tonik */
+
+body {
+  margin: 0;
+  background-color: var(--mantine-color-gray-0);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--mantine-color-tonik-1);
+}
+
+/* Scrollbar discret, potrivit pentru desktop */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--mantine-color-gray-3);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--mantine-color-gray-4);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* Sidebar întunecat Tonik */
+.tonik-sidebar {
+  background: linear-gradient(180deg, #10201d 0%, #0d1a18 100%);
+  border-right: none;
+}
+
+.tonik-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: #9fb3af;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+  margin-bottom: 2px;
+}
+
+.tonik-nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8f0ee;
+}
+
+.tonik-nav-link[data-active='true'] {
+  background: rgba(20, 184, 160, 0.16);
+  color: #4cc8b3;
+  font-weight: 600;
+}
+
+.tonik-nav-link[data-active='true'] .tonik-nav-icon {
+  color: #35c0a8;
+}
+
+.tonik-nav-icon {
+  display: flex;
+  align-items: center;
+  color: #6e837f;
+  transition: color 120ms ease;
+}
+
+.tonik-nav-link:hover .tonik-nav-icon {
+  color: #b5c6c2;
+}
+
+/* Rânduri de tabel clickabile */
+.mantine-datatable tbody tr {
+  transition: background-color 100ms ease;
+}
+
+/* Card hover pentru elemente interactive */
+.tonik-hover-card {
+  transition: box-shadow 140ms ease, transform 140ms ease, border-color 140ms ease;
+}
+.tonik-hover-card:hover {
+  box-shadow: var(--mantine-shadow-md);
+  border-color: var(--mantine-color-tonik-3);
+}

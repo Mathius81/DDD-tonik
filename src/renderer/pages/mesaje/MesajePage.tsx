@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Title, Stack, SegmentedControl, Button, Text } from '@mantine/core';
+import { Stack, SegmentedControl, Button, Text, Card, Badge } from '@mantine/core';
+import { PageHeader } from '../../components/PageHeader';
 import { DataTable } from 'mantine-datatable';
 import { useNavigate } from 'react-router-dom';
 import { ddd } from '../../api/ddd';
@@ -24,8 +25,11 @@ export function MesajePage() {
   );
 
   return (
-    <Stack>
-      <Title order={2}>Mesaje</Title>
+    <Stack gap="lg">
+      <PageHeader
+        title="Mesaje"
+        description="Istoricul mesajelor trimise sau pregătite pentru clienți."
+      />
 
       <SegmentedControl
         value={status}
@@ -40,6 +44,7 @@ export function MesajePage() {
         ]}
       />
 
+      <Card withBorder shadow="sm" padding="lg">
       {!loading && data && data.total === 0 ? (
         <EmptyState
           title="Niciun mesaj."
@@ -48,6 +53,7 @@ export function MesajePage() {
       ) : (
         <DataTable
           minHeight={200}
+          verticalSpacing="sm"
           records={data?.items ?? []}
           fetching={loading}
           totalRecords={data?.total ?? 0}
@@ -84,7 +90,20 @@ export function MesajePage() {
             {
               accessor: 'status',
               title: 'Status',
-              render: (m) => messageStatusLabels[m.status],
+              render: (m) => (
+                <Badge
+                  variant="light"
+                  color={
+                    m.status === 'failed'
+                      ? 'red'
+                      : m.status === 'prepared' || m.status === 'opened'
+                        ? 'orange'
+                        : 'teal'
+                  }
+                >
+                  {messageStatusLabels[m.status]}
+                </Badge>
+              ),
             },
             {
               accessor: 'actions',
@@ -110,6 +129,7 @@ export function MesajePage() {
           ]}
         />
       )}
+      </Card>
     </Stack>
   );
 }
