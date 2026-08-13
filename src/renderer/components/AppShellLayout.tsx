@@ -12,6 +12,7 @@ import {
 } from '@tabler/icons-react';
 import { ddd } from '../api/ddd';
 import { TonikLogo } from './TonikLogo';
+import { NotificationCenter } from './NotificationCenter';
 
 const navSections: Array<{
   label: string | null;
@@ -57,8 +58,12 @@ export function AppShellLayout() {
   return (
     <AppShell navbar={{ width: 248, breakpoint: 0 }} padding={0}>
       <AppShell.Navbar className="tonik-sidebar" p="md">
-        <Box px="xs" pt={6} pb={22}>
+        <Box px="xs" pt={6} pb={18}>
           <TonikLogo />
+        </Box>
+
+        <Box pb={14}>
+          <NotificationCenter />
         </Box>
 
         <Stack gap={18} style={{ flex: 1 }}>

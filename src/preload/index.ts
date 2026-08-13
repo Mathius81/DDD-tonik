@@ -56,6 +56,7 @@ const api = {
   dashboard: {
     get: invoke(IPC.dashboard.get),
     calendarMonth: invoke(IPC.dashboard.calendarMonth),
+    notifications: invoke(IPC.dashboard.notifications),
   },
   settings: {
     get: invoke(IPC.settings.get),

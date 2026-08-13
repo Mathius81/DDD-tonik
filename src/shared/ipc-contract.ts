@@ -51,6 +51,7 @@ export const IPC = {
   dashboard: {
     get: 'dashboard:get',
     calendarMonth: 'dashboard:calendarMonth',
+    notifications: 'dashboard:notifications',
   },
   settings: {
     get: 'settings:get',

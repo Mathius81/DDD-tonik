@@ -177,6 +177,19 @@ export class FollowupRepository {
     return rows.map((r) => this.toListItem(r, todayIso));
   }
 
+  /** Programările din ziua dată — lucrări de efectuat azi. */
+  listScheduledOn(dayIso: string, todayIso: string, limit = 50): FollowupListItem[] {
+    const rows = this.db.all<FollowupJoinedRow>(
+      `${JOINED_SELECT}
+       WHERE a.active = 1 AND f.status = 'scheduled' AND f.scheduled_date = ?
+       ORDER BY f.scheduled_time, f.id
+       LIMIT ?`,
+      dayIso,
+      limit,
+    );
+    return rows.map((r) => this.toListItem(r, todayIso));
+  }
+
   counts(todayIso: string): {
     overdue: number;
     next7: number;
