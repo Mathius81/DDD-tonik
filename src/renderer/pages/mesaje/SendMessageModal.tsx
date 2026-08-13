@@ -10,6 +10,7 @@ import {
   Alert,
   SegmentedControl,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { ddd } from '../../api/ddd';
 import { runMutation, unwrap } from '../../api/useIpc';
 import type { FollowupListItem } from '../../../shared/schemas/followup';
@@ -93,11 +94,19 @@ export function SendMessageModal({ followup, onClose, onSent }: Props) {
         channel,
         body_override: body || null,
       }),
-      channel === 'whatsapp'
-        ? 'WhatsApp s-a deschis cu mesajul pregătit. Apasă Send în WhatsApp, apoi confirmă trimiterea din pagina Mesaje.'
-        : 'Emailul a fost trimis.',
     );
-    if (result) onSent();
+    if (result) {
+      notifications.show({
+        color: 'teal',
+        message:
+          channel === 'whatsapp'
+            ? 'WhatsApp s-a deschis cu mesajul pregătit. Apasă Send în WhatsApp, apoi confirmă trimiterea din pagina Mesaje.'
+            : result.status === 'prepared'
+              ? 'Aplicația de email s-a deschis cu mesajul pregătit. Trimite-l, apoi confirmă din pagina Mesaje.'
+              : 'Emailul a fost trimis.',
+      });
+      onSent();
+    }
   };
 
   return (

@@ -118,6 +118,26 @@ export class MessagingService {
     if (!contact.allow_email) throw new UserFacingError('Contactul nu permite email.');
     if (!contact.email) throw new UserFacingError('Contactul nu are adresă de email.');
 
+    // Fără SMTP configurat: mod asistat gratuit — deschidem aplicația de email
+    // a utilizatorului cu mesajul precompletat (mailto:), la fel ca WhatsApp asistat.
+    if (!this.ctx.settings.get().smtp.host) {
+      const mailto = `mailto:${encodeURIComponent(contact.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      await shell.openExternal(mailto);
+      const log = this.ctx.messages.insertLog({
+        association_id: contact.association_id,
+        contact_id: contact.id,
+        followup_id: input.followup_id,
+        reminder_id: input.reminder_id,
+        channel: 'email',
+        recipient: contact.email,
+        template_id: input.template_id ?? templateUsedId,
+        message_preview: body.slice(0, 500),
+        status: 'prepared',
+      });
+      this.ctx.logger.info(`Email asistat (mailto) deschis pentru contact #${contact.id}`);
+      return log;
+    }
+
     const provider = this.emailProvider();
     const result = await provider.send({ to: contact.email, subject, body });
 

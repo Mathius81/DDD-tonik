@@ -6,8 +6,10 @@ import { runMutation } from '../../api/useIpc';
 import { fmtDate } from '../../components/dateUtils';
 import type { FollowupListItem } from '../../../shared/schemas/followup';
 
-function toIso(d: Date | null): string | null {
+/** Mantine 9 întoarce datele ca string 'YYYY-MM-DD'; acceptăm și Date pentru siguranță. */
+function toIso(d: Date | string | null): string | null {
   if (!d) return null;
+  if (typeof d === 'string') return d;
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
@@ -21,7 +23,7 @@ interface Props {
 export function ScheduleFollowupModal({ followup, onClose, onSaved }: Props) {
   const form = useForm({
     initialValues: {
-      scheduled_date: null as Date | null,
+      scheduled_date: null as string | Date | null,
       scheduled_time: '',
       notes: '',
     },
@@ -32,11 +34,13 @@ export function ScheduleFollowupModal({ followup, onClose, onSaved }: Props) {
 
   const submit = form.onSubmit(async (values) => {
     if (!followup) return;
+    // TimeInput poate întoarce 'HH:mm' sau 'HH:mm:ss' — normalizăm la 'HH:mm'.
+    const time = values.scheduled_time ? values.scheduled_time.slice(0, 5) : null;
     const saved = await runMutation(
       ddd.followups.schedule({
         id: followup.id,
         scheduled_date: toIso(values.scheduled_date)!,
-        scheduled_time: values.scheduled_time || null,
+        scheduled_time: time,
         notes: values.notes || null,
       }),
       'Programarea a fost salvată.',
