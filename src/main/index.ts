@@ -4,6 +4,7 @@ import { createMainWindow } from './window';
 import { applyContentSecurityPolicy } from './security';
 import { resolveAppPaths } from './paths';
 import { Logger } from './logger';
+import type { BootstrapResult } from './bootstrap';
 
 // Gestionarea shortcut-urilor Squirrel la instalare/dezinstalare pe Windows.
 if (started) {
@@ -18,6 +19,12 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
+let boot: BootstrapResult | null = null;
+
+function quitApp(): void {
+  isQuitting = true;
+  app.quit();
+}
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -39,38 +46,48 @@ if (!gotLock) {
     applyContentSecurityPolicy(MAIN_WINDOW_VITE_DEV_SERVER_URL);
 
     try {
-      // Bootstrapping-ul aplicației (DB, IPC, scheduler, tray) crește pe măsură
-      // ce fazele următoare adaugă module; totul pornește din bootstrap().
       const { bootstrap } = await import('./bootstrap');
-      await bootstrap({ paths, logger, getMainWindow: () => mainWindow });
+      boot = await bootstrap({ paths, logger, getMainWindow: () => mainWindow, quit: quitApp });
     } catch (err) {
       logger.error('Eroare la inițializarea aplicației', err);
       throw err;
     }
 
-    mainWindow = createMainWindow();
-    mainWindow.on('closed', () => {
-      mainWindow = null;
-    });
+    const openWindow = () => {
+      mainWindow = createMainWindow();
+      mainWindow.on('close', (event) => {
+        // Setarea „păstrează în tray la închidere” (spec #21).
+        const closeToTray = boot?.ctx.settings.get().app.close_to_tray ?? true;
+        if (closeToTray && !isQuitting) {
+          event.preventDefault();
+          mainWindow?.hide();
+        }
+      });
+      mainWindow.on('closed', () => {
+        mainWindow = null;
+      });
+    };
+
+    openWindow();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        mainWindow = createMainWindow();
+        openWindow();
+      } else {
+        mainWindow?.show();
       }
     });
   });
 
   app.on('window-all-closed', () => {
+    // Cu close-to-tray activ fereastra doar se ascunde, deci acest eveniment
+    // apare când tray-ul e dezactivat sau la Ieșire explicită.
     if (process.platform !== 'darwin') {
-      app.quit();
+      quitApp();
     }
   });
 
   app.on('before-quit', () => {
     isQuitting = true;
   });
-}
-
-export function appIsQuitting(): boolean {
-  return isQuitting;
 }

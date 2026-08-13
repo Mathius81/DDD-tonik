@@ -23,7 +23,7 @@ function toAssociation(row: AssociationRow): Association {
 export class AssociationRepository {
   constructor(private db: Db) {}
 
-  list(filter: AssociationListFilter, todayIso: string): Paginated<AssociationListItem> {
+  list(filter: AssociationListFilter): Paginated<AssociationListItem> {
     const where: string[] = [];
     const params: unknown[] = [];
 

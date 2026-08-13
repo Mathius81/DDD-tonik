@@ -12,5 +12,21 @@
     "plugin:import/electron",
     "plugin:import/typescript"
   ],
-  "parser": "@typescript-eslint/parser"
+  "parser": "@typescript-eslint/parser",
+  "settings": {
+    "import/core-modules": [
+      "electron"
+    ]
+  },
+  "rules": {
+    "import/no-unresolved": [
+      "error",
+      {
+        "ignore": [
+          "\\.css$"
+        ]
+      }
+    ],
+    "@typescript-eslint/no-non-null-assertion": "off"
+  }
 }

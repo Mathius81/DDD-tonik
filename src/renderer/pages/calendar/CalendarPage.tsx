@@ -1,10 +1,220 @@
-import { Title, Text, Stack } from '@mantine/core';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Title,
+  Stack,
+  Group,
+  Button,
+  Select,
+  Card,
+  Text,
+  Badge,
+  SimpleGrid,
+  Modal,
+} from '@mantine/core';
+import { useNavigate } from 'react-router-dom';
+import { ddd } from '../../api/ddd';
+import { useIpcQuery, unwrap } from '../../api/useIpc';
+import { fmtDate } from '../../components/dateUtils';
+import type { CalendarDayEntry } from '../../../shared/schemas/dashboard';
+import type { Service } from '../../../shared/schemas/service';
+
+const monthNames = [
+  'Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie',
+  'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie',
+];
+const weekDays = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
 
 export function CalendarPage() {
+  const navigate = useNavigate();
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth()); // 0-based
+  const [serviceId, setServiceId] = useState<string | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  useEffect(() => {
+    unwrap<Service[]>(ddd.services.list()).then(setServices);
+  }, []);
+
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const { data } = useIpcQuery<CalendarDayEntry[]>(
+    () =>
+      ddd.dashboard.calendarMonth({
+        month: monthKey,
+        service_id: serviceId ? Number(serviceId) : undefined,
+      }),
+    [monthKey, serviceId],
+  );
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, CalendarDayEntry[]>();
+    for (const e of data ?? []) {
+      const list = map.get(e.date) ?? [];
+      list.push(e);
+      map.set(e.date, list);
+    }
+    return map;
+  }, [data]);
+
+  // Grila lunii: începe luni.
+  const gridDays = useMemo(() => {
+    const first = new Date(year, month, 1);
+    const startOffset = (first.getDay() + 6) % 7; // luni = 0
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: (string | null)[] = Array(startOffset).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push(`${monthKey}-${String(d).padStart(2, '0')}`);
+    }
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [year, month, monthKey]);
+
+  const prevMonth = () => {
+    if (month === 0) {
+      setMonth(11);
+      setYear(year - 1);
+    } else setMonth(month - 1);
+  };
+  const nextMonth = () => {
+    if (month === 11) {
+      setMonth(0);
+      setYear(year + 1);
+    } else setMonth(month + 1);
+  };
+
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const selectedEntries = selectedDay ? (byDay.get(selectedDay) ?? []) : [];
+
   return (
     <Stack>
-      <Title order={2}>Calendar</Title>
-      <Text c="dimmed">În curs de implementare.</Text>
+      <Group justify="space-between">
+        <Title order={2}>Calendar</Title>
+        <Select
+          placeholder="Toate serviciile"
+          clearable
+          maw={220}
+          data={services.map((s) => ({ value: String(s.id), label: s.name }))}
+          value={serviceId}
+          onChange={setServiceId}
+        />
+      </Group>
+
+      <Group justify="center">
+        <Button variant="default" onClick={prevMonth}>
+          ‹
+        </Button>
+        <Text fw={600} w={180} ta="center">
+          {monthNames[month]} {year}
+        </Text>
+        <Button variant="default" onClick={nextMonth}>
+          ›
+        </Button>
+      </Group>
+
+      <SimpleGrid cols={7} spacing={4}>
+        {weekDays.map((d) => (
+          <Text key={d} ta="center" size="sm" c="dimmed" fw={600}>
+            {d}
+          </Text>
+        ))}
+        {gridDays.map((day, i) =>
+          day === null ? (
+            <div key={`empty-${i}`} />
+          ) : (
+            <Card
+              key={day}
+              withBorder
+              padding={6}
+              mih={84}
+              style={{
+                cursor: 'pointer',
+                borderColor: day === todayIso ? 'var(--mantine-color-teal-5)' : undefined,
+              }}
+              onClick={() => setSelectedDay(day)}
+            >
+              <Text size="sm" fw={day === todayIso ? 700 : 400}>
+                {Number(day.slice(-2))}
+              </Text>
+              <Stack gap={2} mt={2}>
+                {(byDay.get(day) ?? []).slice(0, 3).map((e, j) => (
+                  <Badge
+                    key={j}
+                    size="xs"
+                    fullWidth
+                    variant="light"
+                    color={e.kind === 'scheduled' ? 'green' : 'orange'}
+                    style={{ textTransform: 'none' }}
+                  >
+                    {e.association_name}
+                  </Badge>
+                ))}
+                {(byDay.get(day)?.length ?? 0) > 3 && (
+                  <Text size="xs" c="dimmed">
+                    +{byDay.get(day)!.length - 3} altele
+                  </Text>
+                )}
+              </Stack>
+            </Card>
+          ),
+        )}
+      </SimpleGrid>
+
+      <Group gap="lg">
+        <Group gap={6}>
+          <Badge color="orange" variant="light" size="sm">
+            ●
+          </Badge>
+          <Text size="sm">Ajunge la termen</Text>
+        </Group>
+        <Group gap={6}>
+          <Badge color="green" variant="light" size="sm">
+            ●
+          </Badge>
+          <Text size="sm">Programată</Text>
+        </Group>
+      </Group>
+
+      <Modal
+        opened={!!selectedDay}
+        onClose={() => setSelectedDay(null)}
+        title={selectedDay ? fmtDate(selectedDay) : ''}
+      >
+        {selectedEntries.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            Nimic programat în această zi.
+          </Text>
+        ) : (
+          <Stack gap="sm">
+            {selectedEntries.map((e, i) => (
+              <Card
+                key={i}
+                withBorder
+                padding="sm"
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  setSelectedDay(null);
+                  navigate(`/asociatii/${e.association_id}`);
+                }}
+              >
+                <Group justify="space-between">
+                  <div>
+                    <Text fw={600}>{e.association_name}</Text>
+                    <Text size="sm" c="dimmed">
+                      {e.service_name}
+                    </Text>
+                  </div>
+                  <Badge color={e.kind === 'scheduled' ? 'green' : 'orange'} variant="light">
+                    {e.kind === 'scheduled'
+                      ? `Programată${e.scheduled_time ? ` ${e.scheduled_time}` : ''}`
+                      : 'Ajunge la termen'}
+                  </Badge>
+                </Group>
+              </Card>
+            ))}
+          </Stack>
+        )}
+      </Modal>
     </Stack>
   );
 }
