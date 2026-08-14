@@ -55,6 +55,12 @@ export function registerMessageHandlers(ctx: AppContext, messaging: MessagingSer
     return ctx.messages.getLog(id);
   });
 
+  handle(IPC.messages.resend, markMessageSentSchema, async ({ id }) => {
+    const log = await messaging.resend(id);
+    ctx.notifyDataChanged();
+    return log;
+  });
+
   handle(IPC.messages.log, messageLogFilterSchema, (filter) => ctx.messages.listLogs(filter));
 
   handle(IPC.messages.counts, null, () => ctx.messages.statusCounts());

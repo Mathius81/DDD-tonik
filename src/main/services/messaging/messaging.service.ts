@@ -74,6 +74,63 @@ export class MessagingService {
     throw new UserFacingError('SMS va fi disponibil într-o versiune viitoare.');
   }
 
+  /**
+   * Retrimite un mesaj rămas „pregătit” sau eșuat, folosind conținutul lui original:
+   * - email: trimite prin SMTP (dacă e configurat acum) sau redeschide mailto;
+   * - whatsapp: redeschide conversația cu textul pregătit.
+   * Actualizează același rând de log, nu creează unul nou.
+   */
+  async resend(logId: number): Promise<MessageLog> {
+    const log = this.ctx.messages.getLog(logId);
+    if (!log) throw new UserFacingError('Mesajul nu a fost găsit.');
+    if (!['prepared', 'opened', 'failed'].includes(log.status)) {
+      throw new UserFacingError('Doar mesajele pregătite sau eșuate pot fi retrimise.');
+    }
+    const contact = log.contact_id ? this.ctx.contacts.getById(log.contact_id) : undefined;
+    if (!contact) throw new UserFacingError('Contactul mesajului nu mai există.');
+    if (contact.do_not_contact) throw new UserFacingError('Contactul este marcat „Nu contacta”.');
+
+    const body = log.message_preview;
+
+    if (log.channel === 'whatsapp') {
+      if (!contact.phone) throw new UserFacingError('Contactul nu are număr de telefon.');
+      const phone = normalizePhoneE164(contact.phone);
+      if (!phone) throw new UserFacingError(`Numărul „${contact.phone}” nu pare valid.`);
+      await shell.openExternal(`https://wa.me/${phone}?text=${encodeURIComponent(body)}`);
+      this.ctx.messages.setLogStatus(log.id, 'opened');
+      return this.ctx.messages.getLog(log.id)!;
+    }
+
+    if (log.channel === 'email') {
+      if (!contact.email) throw new UserFacingError('Contactul nu are adresă de email.');
+      // Reconstruim subiectul din template-ul folosit inițial (sau unul implicit).
+      const { subject } = this.buildMessage(contact.id, log.followup_id, 'email', log.template_id);
+      if (!this.ctx.settings.get().smtp.host) {
+        const mailto = `mailto:${encodeURIComponent(contact.email)}?subject=${encodeURIComponent(subject ?? 'Programare intervenție')}&body=${encodeURIComponent(body)}`;
+        await shell.openExternal(mailto);
+        this.ctx.messages.setLogStatus(log.id, 'prepared');
+        return this.ctx.messages.getLog(log.id)!;
+      }
+      const result = await this.emailProvider().send({
+        to: contact.email,
+        subject: subject ?? 'Programare intervenție',
+        body,
+      });
+      this.ctx.messages.setLogStatus(
+        log.id,
+        result.ok ? 'accepted_by_provider' : 'failed',
+        result.error ?? null,
+      );
+      if (!result.ok) {
+        this.ctx.logger.error(`Retrimitere email eșuată pentru log #${log.id}: ${result.error}`);
+        throw new UserFacingError('Mesajul nu a putut fi trimis. Verifică setările de email.');
+      }
+      return this.ctx.messages.getLog(log.id)!;
+    }
+
+    throw new UserFacingError('SMS va fi disponibil într-o versiune viitoare.');
+  }
+
   private async sendWhatsappAssisted(
     contact: Contact,
     body: string,

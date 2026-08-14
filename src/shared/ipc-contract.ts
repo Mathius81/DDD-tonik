@@ -47,6 +47,7 @@ export const IPC = {
     send: 'messages:send',
     preview: 'messages:preview',
     markSent: 'messages:markSent',
+    resend: 'messages:resend',
     log: 'messages:log',
     counts: 'messages:counts',
   },

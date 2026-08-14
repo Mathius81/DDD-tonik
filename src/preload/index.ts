@@ -52,6 +52,7 @@ const api = {
     send: invoke(IPC.messages.send),
     preview: invoke(IPC.messages.preview),
     markSent: invoke(IPC.messages.markSent),
+    resend: invoke(IPC.messages.resend),
     log: invoke(IPC.messages.log),
     counts: invoke(IPC.messages.counts),
   },

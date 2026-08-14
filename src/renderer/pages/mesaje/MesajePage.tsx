@@ -56,6 +56,19 @@ export function MesajePage() {
     reload();
   };
 
+  const resend = async (m: MessageLogListItem) => {
+    const result = await runMutation<MessageLogListItem>(
+      ddd.messages.resend({ id: m.id }),
+      m.channel === 'email'
+        ? 'Trimis.'
+        : 'WhatsApp s-a deschis cu mesajul pregătit — apasă Send acolo.',
+    );
+    if (result) {
+      setSelected(null);
+      reload();
+    }
+  };
+
   return (
     <Stack gap="var(--sp-4)">
       <PageHeader
@@ -239,8 +252,17 @@ export function MesajePage() {
                 </Text>
               </Card>
             </div>
-            {['prepared', 'opened'].includes(selected.status) && (
-              <Button onClick={() => markSent(selected)}>Marchează trimis</Button>
+            {['prepared', 'opened', 'failed'].includes(selected.status) && (
+              <Group grow>
+                <Button onClick={() => resend(selected)}>
+                  {selected.channel === 'email' ? 'Trimite acum' : 'Deschide în WhatsApp'}
+                </Button>
+                {selected.status !== 'failed' && (
+                  <Button variant="default" onClick={() => markSent(selected)}>
+                    Marchează trimis
+                  </Button>
+                )}
+              </Group>
             )}
           </Stack>
         )}
