@@ -5,6 +5,9 @@ export interface EmailMessage {
   to: string;
   subject: string;
   body: string;
+  /** Variantă HTML opțională; textul rămâne fallback pentru clienți vechi. */
+  html?: string;
+  attachments?: Array<{ filename: string; content: Buffer; cid?: string }>;
 }
 
 export interface SendResult {
@@ -46,6 +49,8 @@ export class SmtpEmailProvider implements EmailProvider {
         to: message.to,
         subject: message.subject,
         text: message.body,
+        html: message.html,
+        attachments: message.attachments,
       });
       return { ok: true, providerMessageId: info.messageId };
     } catch (err) {

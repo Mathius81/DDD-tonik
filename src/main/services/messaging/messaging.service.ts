@@ -3,6 +3,7 @@ import type { AppContext } from '../../app-context';
 import type { SecretsService } from '../secrets.service';
 import { renderTemplate, normalizePhoneE164, type TemplateContext } from './template-render';
 import { SmtpEmailProvider } from './email.provider';
+import { renderEmailHtml, textToHtml, logoAttachment } from './email-template';
 import { UserFacingError } from '../../ipc/register';
 import type { SendMessageInput, MessageLog } from '../../../shared/schemas/message';
 import type { Contact } from '../../../shared/schemas/contact';
@@ -115,6 +116,8 @@ export class MessagingService {
         to: contact.email,
         subject: subject ?? 'Programare intervenție',
         body,
+        html: renderEmailHtml(textToHtml(body), this.ctx.settings.get().company),
+        attachments: [logoAttachment()],
       });
       this.ctx.messages.setLogStatus(
         log.id,
@@ -196,7 +199,13 @@ export class MessagingService {
     }
 
     const provider = this.emailProvider();
-    const result = await provider.send({ to: contact.email, subject, body });
+    const result = await provider.send({
+      to: contact.email,
+      subject,
+      body,
+      html: renderEmailHtml(textToHtml(body), this.ctx.settings.get().company),
+      attachments: [logoAttachment()],
+    });
 
     const log = this.ctx.messages.insertLog({
       association_id: contact.association_id,

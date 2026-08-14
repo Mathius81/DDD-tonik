@@ -3,6 +3,7 @@ import type { MessagingService } from './messaging/messaging.service';
 import { formatRo } from '../../shared/dates';
 import { roLongDate, pluralRo, dueContext } from '../../shared/text';
 import type { FollowupListItem } from '../../shared/schemas/followup';
+import { renderEmailHtml, textToHtml, logoAttachment } from './messaging/email-template';
 
 const LAST_DIGEST_KEY = 'last_daily_digest_date';
 
@@ -56,6 +57,8 @@ export class DailyDigestService {
       to,
       subject: `Planul zilei · ${formatRo(todayIsoDate)} · Tonik`,
       body,
+      html: renderEmailHtml(textToHtml(body), this.ctx.settings.get().company),
+      attachments: [logoAttachment()],
     });
     if (!result.ok) throw new Error(result.error ?? 'SMTP a refuzat mesajul');
   }

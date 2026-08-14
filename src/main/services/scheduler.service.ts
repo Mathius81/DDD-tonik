@@ -3,6 +3,7 @@ import type { NotificationService } from './notification.service';
 import type { MessagingService } from './messaging/messaging.service';
 import type { DailyDigestService } from './daily-digest.service';
 import { formatRo } from '../../shared/dates';
+import { renderEmailHtml, textToHtml, logoAttachment } from './messaging/email-template';
 import type { Reminder } from '../../shared/schemas/reminder';
 
 const TICK_INTERVAL_MS = 10 * 60 * 1000; // 10 minute (spec #19)
@@ -132,6 +133,8 @@ export class SchedulerService {
             to: contact.email,
             subject: subject ?? `Programare ${service?.name ?? ''}`,
             body,
+            html: renderEmailHtml(textToHtml(body), this.ctx.settings.get().company),
+            attachments: [logoAttachment()],
           });
           this.ctx.messages.insertLog({
             association_id: association.id,
