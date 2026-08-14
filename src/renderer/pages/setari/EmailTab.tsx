@@ -25,25 +25,37 @@ export function EmailTab({ settings, onSaved }: { settings: Settings; onSaved: (
 
   const configured = !!settings.smtp.host;
 
-  const submit = form.onSubmit(async (values) => {
+  /** Salvează setările + parola (dacă a fost introdusă). Returnează true la succes. */
+  const persist = async (values: typeof form.values, successMessage?: string): Promise<boolean> => {
     // Parola merge separat, criptată cu safeStorage; nu se salvează în setări.
     if (password) {
       const ok = await runMutation(ddd.settings.setSecret({ key: 'smtp_password', value: password }));
-      if (ok === null) return;
+      if (ok === null) return false;
       values.has_password = true;
     }
     const saved = await runMutation(
       ddd.settings.update({ ...settings, smtp: values }),
-      'Setările de email au fost salvate.',
+      successMessage,
     );
     if (saved) {
       setPassword('');
       onSaved();
     }
+    return !!saved;
+  };
+
+  const submit = form.onSubmit(async (values) => {
+    await persist(values, 'Salvat.');
   });
 
+  // Testul salvează întâi ce e în formular — altfel ar testa setările vechi.
   const testConnection = async () => {
     setTesting(true);
+    const ok = await persist(form.values);
+    if (!ok) {
+      setTesting(false);
+      return;
+    }
     const result = await runMutation<{ ok: boolean }>(ddd.settings.testSmtp());
     setTesting(false);
     if (result) {
