@@ -58,7 +58,7 @@ export function AppShellLayout() {
   return (
     <AppShell navbar={{ width: 248, breakpoint: 0 }} padding={0}>
       <AppShell.Navbar className="tonik-sidebar" p="md">
-        <Box px={10} pt={10} pb={16}>
+        <Box px={10} pt={10} pb={32}>
           <TonikLogo />
         </Box>
 
