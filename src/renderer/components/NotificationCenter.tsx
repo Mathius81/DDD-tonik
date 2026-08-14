@@ -97,13 +97,22 @@ export function NotificationCenter() {
         aria-label="Notificări"
       >
         <span className="tonik-todo-icon">
-          <IconBell size={18} stroke={1.8} />
+          <IconBell size={15} stroke={1.8} />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Text size="sm" fw={600} c={badge > 0 ? '#e8f0ee' : '#9fb3af'} lh={1.2}>
+          <Text
+            size="var(--fs-body)"
+            fw={600}
+            c={badge > 0 ? 'var(--text-on-dark)' : 'var(--text-on-dark-muted)'}
+            lh={1.25}
+          >
             De făcut azi
           </Text>
-          <Text size="xs" c={badge > 0 ? '#72d5c4' : '#546863'} lh={1.3}>
+          <Text
+            size="var(--fs-small)"
+            c={badge > 0 ? 'var(--accent)' : 'var(--text-on-dark-muted)'}
+            lh={1.3}
+          >
             {badge === 0
               ? 'Totul este la zi'
               : badge === 1
@@ -112,7 +121,7 @@ export function NotificationCenter() {
           </Text>
         </div>
         {badge > 0 && (
-          <Badge size="lg" color="red" variant="filled" circle>
+          <Badge size="md" color="red" variant="filled" circle>
             {badge > 99 ? '99+' : badge}
           </Badge>
         )}

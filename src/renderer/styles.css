@@ -1,17 +1,37 @@
-/* Stiluri globale Tonik */
+@import './tokens.css';
+
+/* ============================================================
+   Stiluri globale Tonik — construite exclusiv pe tokeni.
+   ============================================================ */
 
 body {
   margin: 0;
-  background-color: var(--mantine-color-gray-0);
+  background-color: var(--bg-app);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: var(--mantine-color-tonik-1);
+  background: var(--accent-soft);
 }
 
-/* Scrollbar discret, potrivit pentru desktop */
+/* Cifre tabulare pe orice conține numere sau date */
+.tonik-num,
+table,
+.mantine-datatable {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus vizibil pe tastatură (Brief §8) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Scrollbar discret */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -20,109 +40,158 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--mantine-color-gray-3);
+  background: var(--border-strong);
   border-radius: 5px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--mantine-color-gray-4);
+  background: var(--text-faint);
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
-/* Sidebar întunecat Tonik */
+/* Mișcare redusă (Brief §8) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   Shell: sidebar + titlebar integrat
+   ============================================================ */
+
 .tonik-sidebar {
-  background: linear-gradient(180deg, #10201d 0%, #0d1a18 100%);
+  background: var(--bg-sidebar);
   border-right: none;
+}
+
+/* Zona de sus a sidebar-ului e și zona de drag a ferestrei
+   (titlebar hiddenInset pe macOS / custom pe Windows). */
+.tonik-drag-region {
+  -webkit-app-region: drag;
+  height: 30px;
+  flex-shrink: 0;
+}
+.tonik-drag-region * {
+  -webkit-app-region: no-drag;
 }
 
 .tonik-nav-link {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  color: #9fb3af;
-  font-size: 14px;
+  gap: 10px;
+  height: 34px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-md);
+  border-left: 2px solid transparent;
+  color: var(--text-on-dark-muted);
+  font-size: var(--fs-body);
   font-weight: 500;
   text-decoration: none;
-  transition: background-color 120ms ease, color 120ms ease;
-  margin-bottom: 2px;
+  transition: background-color 140ms ease, color 140ms ease;
+  margin-bottom: 1px;
 }
 
 .tonik-nav-link:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e8f0ee;
+  background: var(--bg-sidebar-hi);
+  color: var(--text-on-dark);
 }
 
 .tonik-nav-link[data-active='true'] {
-  background: rgba(20, 184, 160, 0.16);
-  color: #4cc8b3;
+  background: var(--bg-sidebar-hi);
+  border-left-color: var(--accent);
+  color: var(--accent);
   font-weight: 600;
 }
 
 .tonik-nav-link[data-active='true'] .tonik-nav-icon {
-  color: #35c0a8;
+  color: var(--accent);
 }
 
 .tonik-nav-icon {
   display: flex;
   align-items: center;
-  color: #6e837f;
-  transition: color 120ms ease;
+  color: var(--text-on-dark-muted);
+  transition: color 140ms ease;
 }
 
 .tonik-nav-link:hover .tonik-nav-icon {
-  color: #b5c6c2;
+  color: var(--text-on-dark);
 }
 
-/* Separator discret între cardul „De făcut azi” și meniu */
+/* Eyebrow-uri de secțiune în sidebar */
+.tonik-nav-eyebrow {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-on-dark-muted);
+  opacity: 0.75;
+  padding: 0 var(--sp-3);
+  padding-bottom: var(--sp-1);
+}
+
+/* Subsolul sidebar-ului: stare backup + versiune */
+.tonik-sidebar-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding: var(--sp-3) var(--sp-3) var(--sp-1);
+  font-size: var(--fs-small);
+  color: var(--text-on-dark-muted);
+}
+
+/* Separator între „De făcut azi” și meniu */
 .tonik-sidebar-divider {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-/* Cardul „De făcut azi” din sidebar */
+/* ============================================================
+   Cardul „De făcut azi” — compact (Brief §5.1)
+   ============================================================ */
+
 .tonik-todo-card {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  transition: background-color 130ms ease, border-color 130ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease;
 }
 
 .tonik-todo-card:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-sidebar-hi);
   border-color: rgba(255, 255, 255, 0.12);
 }
 
 .tonik-todo-card[data-alert] {
-  background: rgba(20, 184, 160, 0.14);
-  border-color: rgba(20, 184, 160, 0.45);
+  background: rgba(46, 158, 126, 0.14);
+  border-color: rgba(46, 158, 126, 0.45);
   animation: tonik-todo-pulse 2.4s ease-in-out infinite;
 }
 
 .tonik-todo-card[data-alert]:hover {
-  background: rgba(20, 184, 160, 0.2);
+  background: rgba(46, 158, 126, 0.2);
   animation-play-state: paused;
-  border-color: rgba(53, 192, 168, 0.9);
-  box-shadow: 0 0 0 4px rgba(20, 184, 160, 0.18);
+  border-color: rgba(46, 158, 126, 0.9);
 }
 
-/* Puls discret pe bordură + halou, când există sarcini de făcut azi */
 @keyframes tonik-todo-pulse {
   0%,
   100% {
-    border-color: rgba(20, 184, 160, 0.35);
-    box-shadow: 0 0 0 0 rgba(20, 184, 160, 0);
+    border-color: rgba(46, 158, 126, 0.35);
+    box-shadow: 0 0 0 0 rgba(46, 158, 126, 0);
   }
   50% {
-    border-color: rgba(53, 192, 168, 0.95);
-    box-shadow: 0 0 0 5px rgba(20, 184, 160, 0.14);
+    border-color: rgba(46, 158, 126, 0.95);
+    box-shadow: 0 0 0 4px rgba(46, 158, 126, 0.14);
   }
 }
 
@@ -130,29 +199,39 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.07);
-  color: #9fb3af;
+  color: var(--text-on-dark-muted);
   flex-shrink: 0;
 }
 
 .tonik-todo-card[data-alert] .tonik-todo-icon {
-  background: rgba(20, 184, 160, 0.25);
-  color: #4cc8b3;
+  background: rgba(46, 158, 126, 0.25);
+  color: var(--accent);
 }
 
-/* Rânduri de tabel clickabile */
+/* ============================================================
+   Conținut
+   ============================================================ */
+
+.tonik-content {
+  max-width: var(--content-max-w);
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-6);
+}
+
+/* Rânduri de tabel */
 .mantine-datatable tbody tr {
   transition: background-color 100ms ease;
 }
 
 /* Card hover pentru elemente interactive */
 .tonik-hover-card {
-  transition: box-shadow 140ms ease, transform 140ms ease, border-color 140ms ease;
+  transition: box-shadow 140ms ease, border-color 140ms ease;
 }
 .tonik-hover-card:hover {
-  box-shadow: var(--mantine-shadow-md);
-  border-color: var(--mantine-color-tonik-3);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
 }

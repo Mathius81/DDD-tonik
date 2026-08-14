@@ -8,10 +8,14 @@ export function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 1000,
+    minWidth: 1024,
     minHeight: 640,
     show: false,
-    title: 'DDD Manager',
+    title: 'Tonik',
+    // Titlebar integrat cu sidebar-ul (fără bandă neagră) — Brief §5.1.
+    titleBarStyle: 'hiddenInset',
+    titleBarOverlay: process.platform !== 'darwin' ? { color: '#0e1b16', symbolColor: '#e8efeb', height: 30 } : undefined,
+    backgroundColor: '#0e1b16',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

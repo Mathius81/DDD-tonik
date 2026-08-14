@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AppShell, Box, Stack, Text } from '@mantine/core';
 import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
@@ -11,6 +11,7 @@ import {
   IconSettings,
 } from '@tabler/icons-react';
 import { ddd } from '../api/ddd';
+import { unwrap } from '../api/useIpc';
 import { TonikLogo } from './TonikLogo';
 import { NotificationCenter } from './NotificationCenter';
 
@@ -43,45 +44,71 @@ const navSections: Array<{
   },
 ];
 
+interface BackupInfo {
+  name: string;
+  created_at: string;
+}
+
+/** „acum 2 h” / „acum 3 zile” pentru subsolul sidebar-ului. */
+function relativeTime(iso: string): string {
+  const then = new Date(iso.replace(' ', 'T'));
+  const mins = Math.max(0, Math.round((Date.now() - then.getTime()) / 60000));
+  if (mins < 60) return `acum ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `acum ${hours} h`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? 'ieri' : `acum ${days} ${days < 20 ? 'zile' : 'de zile'}`;
+}
+
+function backupAgeDays(iso: string): number {
+  const then = new Date(iso.replace(' ', 'T'));
+  return Math.floor((Date.now() - then.getTime()) / 86_400_000);
+}
+
 export function AppShellLayout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [lastBackup, setLastBackup] = useState<BackupInfo | null>(null);
 
   // Click pe notificarea Windows → main trimite ruta țintă.
   useEffect(() => {
     return ddd.events.onNavigate((route) => navigate(route));
   }, [navigate]);
 
+  // Stare backup pentru subsolul sidebar-ului.
+  useEffect(() => {
+    const load = () =>
+      unwrap<BackupInfo[]>(ddd.backup.list())
+        .then((list) => setLastBackup(list[0] ?? null))
+        .catch(() => undefined);
+    load();
+    const timer = setInterval(load, 10 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const isActive = (path: string) =>
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
+  const backupStale = lastBackup ? backupAgeDays(lastBackup.created_at) >= 2 : true;
+
   return (
-    <AppShell navbar={{ width: 248, breakpoint: 0 }} padding={0}>
-      <AppShell.Navbar className="tonik-sidebar" p="md">
-        <Box px={10} pt={10} pb={32}>
+    <AppShell navbar={{ width: 228, breakpoint: 0 }} padding={0}>
+      <AppShell.Navbar className="tonik-sidebar" p="var(--sp-3)" pt={0}>
+        {/* Zonă de drag pentru fereastră (titlebar integrat) */}
+        <div className="tonik-drag-region" />
+
+        <Box px={6} pb={16} style={{ display: 'flex', justifyContent: 'center' }}>
           <TonikLogo />
         </Box>
 
-        <Box pb={28} mb={28} className="tonik-sidebar-divider">
+        <Box pb={16} mb={16} className="tonik-sidebar-divider">
           <NotificationCenter />
         </Box>
 
-        <Stack gap={18} style={{ flex: 1 }}>
+        <Stack gap={14} style={{ flex: 1, overflowY: 'auto' }}>
           {navSections.map((section, i) => (
             <div key={i}>
-              {section.label && (
-                <Text
-                  size="10px"
-                  fw={600}
-                  tt="uppercase"
-                  c="#546863"
-                  px={12}
-                  pb={6}
-                  style={{ letterSpacing: '0.09em' }}
-                >
-                  {section.label}
-                </Text>
-              )}
+              {section.label && <div className="tonik-nav-eyebrow">{section.label}</div>}
               {section.items.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -92,7 +119,7 @@ export function AppShellLayout() {
                     data-active={isActive(item.path) || undefined}
                   >
                     <span className="tonik-nav-icon">
-                      <Icon size={19} stroke={1.7} />
+                      <Icon size={16} stroke={1.8} />
                     </span>
                     {item.label}
                   </Link>
@@ -102,15 +129,26 @@ export function AppShellLayout() {
           ))}
         </Stack>
 
-        <Text size="xs" c="#546863" px={12} pb={4}>
-          Tonik · v1.0
-        </Text>
+        <div className="tonik-sidebar-footer">
+          <Text
+            size="var(--fs-small)"
+            c={backupStale ? 'var(--warning)' : 'var(--text-on-dark-muted)'}
+            lh={1.4}
+          >
+            {lastBackup
+              ? `Ultimul backup: ${relativeTime(lastBackup.created_at)}`
+              : 'Niciun backup încă'}
+          </Text>
+          <Text size="var(--fs-small)" c="var(--text-on-dark-muted)" opacity={0.7} lh={1.6}>
+            Tonik · v1.0
+          </Text>
+        </div>
       </AppShell.Navbar>
 
-      <AppShell.Main style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
-        <Box p="xl">
+      <AppShell.Main style={{ backgroundColor: 'var(--bg-app)' }}>
+        <div className="tonik-content">
           <Outlet />
-        </Box>
+        </div>
       </AppShell.Main>
     </AppShell>
   );

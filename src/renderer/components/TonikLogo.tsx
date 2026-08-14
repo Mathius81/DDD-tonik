@@ -1,17 +1,30 @@
 import logoUrl from '../assets/tonik-logo.png';
 
-/** Logo-ul Tonik — imaginea oficială a firmei, pe fundal transparent. */
+/** Logo-ul Tonik, încadrat compact (max 44px înălțime — Brief §5.1). */
 export function TonikLogo() {
   return (
-    <img
-      src={logoUrl}
-      alt="Tonik — Dezinsecție, Deratizare, Dezinfectare"
-      style={{
-        width: '100%',
-        height: 'auto',
-        display: 'block',
-        filter: 'drop-shadow(0 4px 14px rgba(0, 0, 0, 0.45))',
-      }}
-    />
+    <div style={{ textAlign: 'center' }}>
+      <img
+        src={logoUrl}
+        alt="Tonik"
+        style={{
+          height: 44,
+          width: 'auto',
+          display: 'block',
+          margin: '0 auto',
+          filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4))',
+        }}
+      />
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--text-on-dark-muted)',
+          marginTop: 6,
+          letterSpacing: '0.02em',
+        }}
+      >
+        Dezinsecție · Deratizare · Dezinfecție
+      </div>
+    </div>
   );
 }

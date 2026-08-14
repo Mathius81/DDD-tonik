@@ -1,0 +1,87 @@
+/* ============================================================
+   Design tokens Tonik — sursa unică de adevăr pentru culori,
+   tipografie, spațiere, colțuri și umbre. (Brief §3)
+   ============================================================ */
+
+:root {
+  /* Suprafețe */
+  --bg-app: #f7f8f7;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f3f2;
+  --bg-sidebar: #0e1b16;
+  --bg-sidebar-hi: #17281f;
+
+  /* Borduri */
+  --border: #e3e7e5;
+  --border-strong: #cbd2cf;
+
+  /* Text */
+  --text: #12201a;
+  --text-muted: #5c6b64;
+  --text-faint: #8a9791;
+  --text-on-dark: #e8efeb;
+  --text-on-dark-muted: #8fa69b;
+
+  /* Accent (acțiune primară) */
+  --accent: #2e9e7e;
+  --accent-hover: #268a6d;
+  --accent-soft: #e6f4ef;
+
+  /* Stări */
+  --danger: #c4453d;
+  --danger-soft: #fbebea;
+  --warning: #b87514;
+  --warning-soft: #fdf3e3;
+  --success: #2e9e7e;
+  --success-soft: #e6f4ef;
+
+  /* Servicii — culoare fixă per serviciu, identică peste tot */
+  --svc-dezinsectie: #7c5cd6;
+  --svc-dezinsectie-soft: #efebfb;
+  --svc-deratizare: #c07a15;
+  --svc-deratizare-soft: #fbf1df;
+  --svc-dezinfectie: #2f80c9;
+  --svc-dezinfectie-soft: #e7f1fa;
+  --svc-spalare: #b8496b;
+  --svc-spalare-soft: #faebf0;
+  --svc-fallback: #5c6b64;
+  --svc-fallback-soft: #f1f3f2;
+
+  /* Tipografie */
+  --font-ui: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --fs-page-title: 20px;
+  --fs-section: 15px;
+  --fs-body: 13.5px;
+  --fs-small: 12px;
+  --fs-micro: 10.5px;
+
+  /* Spațiere */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* Colțuri */
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  /* Umbre */
+  --shadow-sm: 0 1px 2px rgba(18, 32, 26, 0.05);
+  --shadow-md: 0 4px 12px rgba(18, 32, 26, 0.08);
+  --shadow-pop: 0 8px 28px rgba(18, 32, 26, 0.14);
+
+  /* Densitate: rânduri de tabel (comutabil din Setări → Aplicație) */
+  --row-h: 40px; /* compact (implicit); confortabil = 48px */
+
+  /* Layout */
+  --sidebar-w: 228px;
+  --content-max-w: 1360px;
+}
+
+[data-density='comfortable'] {
+  --row-h: 48px;
+}
