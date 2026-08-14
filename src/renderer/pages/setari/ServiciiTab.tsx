@@ -39,7 +39,6 @@ export function ServiciiTab() {
           Adaugă serviciu
         </Button>
       }
-      maw={720}
     >
       <Table verticalSpacing="sm" highlightOnHover>
         <Table.Thead>

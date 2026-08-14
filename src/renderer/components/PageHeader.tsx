@@ -16,7 +16,7 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
           {title}
         </Title>
         {description && (
-          <Text size="sm" c="dimmed" maw={560}>
+          <Text size="sm" c="dimmed" maw={720}>
             {description}
           </Text>
         )}

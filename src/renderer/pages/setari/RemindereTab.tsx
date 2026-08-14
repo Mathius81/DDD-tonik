@@ -27,7 +27,6 @@ export function RemindereTab({ settings, onSaved }: { settings: Settings; onSave
       title="Reguli de reminder"
       description="Pentru fiecare intervenție viitoare se generează automat câte un reminder cu numărul de zile ales înainte de scadență. Regulile se aplică intervențiilor înregistrate de acum înainte."
       icon={<IconBellRinging size={21} stroke={1.7} />}
-      maw={720}
     >
       <Table verticalSpacing="sm">
         <Table.Thead>

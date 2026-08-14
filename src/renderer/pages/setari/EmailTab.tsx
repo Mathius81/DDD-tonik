@@ -67,7 +67,6 @@ export function EmailTab({ settings, onSaved }: { settings: Settings; onSaved: (
           </Badge>
         )
       }
-      maw={640}
     >
       <form onSubmit={submit}>
         <Stack gap="md">

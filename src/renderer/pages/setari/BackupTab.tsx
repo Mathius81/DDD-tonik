@@ -75,7 +75,7 @@ export function BackupTab({ settings, onSaved }: { settings: Settings; onSaved: 
     });
 
   return (
-    <Stack gap="lg" maw={720}>
+    <Stack gap="lg">
       <SectionCard
         title="Backup automat"
         description="Aplicația creează zilnic o copie de siguranță a datelor, la prima pornire din zi."

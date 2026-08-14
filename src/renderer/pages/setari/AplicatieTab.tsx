@@ -26,7 +26,6 @@ export function AplicatieTab({ settings, onSaved }: { settings: Settings; onSave
       title="Comportamentul aplicației"
       description="Cum pornește și cum rămâne activă aplicația Tonik."
       icon={<IconAdjustments size={21} stroke={1.7} />}
-      maw={640}
     >
       <Stack gap="md">
         <Switch

@@ -108,7 +108,7 @@ export function AppShellLayout() {
       </AppShell.Navbar>
 
       <AppShell.Main style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
-        <Box p="xl" maw={1240} mx="auto">
+        <Box p="xl">
           <Outlet />
         </Box>
       </AppShell.Main>

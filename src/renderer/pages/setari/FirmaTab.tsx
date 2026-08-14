@@ -22,7 +22,6 @@ export function FirmaTab({ settings, onSaved }: { settings: Settings; onSaved: (
       title="Datele firmei"
       description="Aceste informații apar automat în mesajele trimise clienților (nume, telefon de contact)."
       icon={<IconBuilding size={21} stroke={1.7} />}
-      maw={640}
     >
       <form onSubmit={submit}>
         <Stack gap="md">

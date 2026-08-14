@@ -57,7 +57,6 @@ export function WhatsappTab({ settings, onSaved }: { settings: Settings; onSaved
           {modeLabels[settings.whatsapp.mode]}
         </Badge>
       }
-      maw={640}
     >
       <form onSubmit={submit}>
         <Stack gap="md">
