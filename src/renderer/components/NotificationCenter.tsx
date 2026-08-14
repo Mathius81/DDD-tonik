@@ -3,7 +3,6 @@ import {
   Badge,
   Drawer,
   Group,
-  Indicator,
   Stack,
   Text,
   ThemeIcon,
@@ -93,25 +92,28 @@ export function NotificationCenter() {
     <>
       <UnstyledButton
         onClick={() => setOpened(true)}
-        className="tonik-nav-link"
-        style={{ width: '100%' }}
+        className="tonik-todo-card"
+        data-alert={badge > 0 || undefined}
         aria-label="Notificări"
       >
-        <span className="tonik-nav-icon">
-          <Indicator
-            disabled={badge === 0}
-            label={badge > 99 ? '99+' : badge}
-            size={16}
-            color="red"
-            offset={2}
-          >
-            <IconBell size={19} stroke={1.7} />
-          </Indicator>
+        <span className="tonik-todo-icon">
+          <IconBell size={18} stroke={1.8} />
         </span>
-        De făcut
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Text size="sm" fw={600} c={badge > 0 ? '#e8f0ee' : '#9fb3af'} lh={1.2}>
+            De făcut azi
+          </Text>
+          <Text size="xs" c={badge > 0 ? '#72d5c4' : '#546863'} lh={1.3}>
+            {badge === 0
+              ? 'Totul este la zi'
+              : badge === 1
+                ? 'o sarcină te așteaptă'
+                : `${badge} sarcini te așteaptă`}
+          </Text>
+        </div>
         {badge > 0 && (
-          <Badge size="sm" color="red" variant="filled" ml="auto">
-            {badge}
+          <Badge size="lg" color="red" variant="filled" circle>
+            {badge > 99 ? '99+' : badge}
           </Badge>
         )}
       </UnstyledButton>
