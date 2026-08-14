@@ -108,7 +108,8 @@ export function AppShellLayout() {
       </AppShell.Navbar>
 
       <AppShell.Main style={{ backgroundColor: 'var(--mantine-color-gray-0)' }}>
-        <Box p="xl">
+        <div className="tonik-watermark" aria-hidden />
+        <Box p="xl" style={{ position: 'relative' }}>
           <Outlet />
         </Box>
       </AppShell.Main>

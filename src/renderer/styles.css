@@ -77,6 +77,29 @@ body {
   color: #b5c6c2;
 }
 
+/* Watermark: silueta logo-ului Tonik, ca o umbră abia vizibilă în centrul paginii.
+   Folosim mask ca imaginea să devină o formă monocromă, nu logo-ul colorat estompat. */
+.tonik-watermark {
+  position: fixed;
+  top: 50%;
+  left: calc(50% + 124px); /* centrat pe zona de conținut (sidebar 248px) */
+  transform: translate(-50%, -50%);
+  width: 560px;
+  height: 315px;
+  background-color: var(--mantine-color-gray-9);
+  opacity: 0.03;
+  -webkit-mask-image: url('./assets/tonik-logo.png');
+  mask-image: url('./assets/tonik-logo.png');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  mask-position: center;
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Separator discret între cardul „De făcut azi” și meniu */
 .tonik-sidebar-divider {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
