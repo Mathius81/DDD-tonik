@@ -50,7 +50,9 @@ export class InterventionRepository {
         ?.n ?? 0;
 
     const rows = this.db.all<InterventionListItem>(
-      `SELECT i.*, a.name AS association_name, s.name AS service_name
+      `SELECT i.*, a.name AS association_name, s.name AS service_name,
+         (SELECT f.due_date FROM followups f WHERE f.source_intervention_id = i.id LIMIT 1) AS next_due_date,
+         (SELECT f.status FROM followups f WHERE f.source_intervention_id = i.id LIMIT 1) AS next_status
        FROM interventions i
        JOIN associations a ON a.id = i.association_id
        JOIN services s ON s.id = i.service_id

@@ -85,3 +85,49 @@
 [data-density='comfortable'] {
   --row-h: 48px;
 }
+
+/* ============================================================
+   Temă închisă (Brief §7.4) — activată cu [data-theme='dark']
+   ============================================================ */
+[data-theme='dark'] {
+  --bg-app: #101815;
+  --bg-surface: #16211d;
+  --bg-subtle: #1c2925;
+  --bg-sidebar: #0b1310;
+  --bg-sidebar-hi: #15221d;
+
+  --border: #263731;
+  --border-strong: #34483f;
+
+  --text: #e4ece8;
+  --text-muted: #9caba3;
+  --text-faint: #6b7a72;
+  --text-on-dark: #e8efeb;
+  --text-on-dark-muted: #8fa69b;
+
+  --accent: #3db38f;
+  --accent-hover: #4cc29e;
+  --accent-soft: #1a3229;
+
+  --danger: #e06058;
+  --danger-soft: #3a1f1d;
+  --warning: #d99a3d;
+  --warning-soft: #382a14;
+  --success: #3db38f;
+  --success-soft: #1a3229;
+
+  --svc-dezinsectie: #9d82e8;
+  --svc-dezinsectie-soft: #2a2440;
+  --svc-deratizare: #d9962f;
+  --svc-deratizare-soft: #3a2c12;
+  --svc-dezinfectie: #5aa2e0;
+  --svc-dezinfectie-soft: #16293a;
+  --svc-spalare: #d16788;
+  --svc-spalare-soft: #381c26;
+  --svc-fallback: #9caba3;
+  --svc-fallback-soft: #1c2925;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55);
+}

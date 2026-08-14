@@ -35,4 +35,7 @@ export interface Intervention {
 export interface InterventionListItem extends Intervention {
   association_name: string;
   service_name: string;
+  /** Scadența follow-up-ului generat de această intervenție (dacă există). */
+  next_due_date: string | null;
+  next_status: string | null;
 }

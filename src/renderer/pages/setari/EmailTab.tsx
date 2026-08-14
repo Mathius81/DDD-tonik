@@ -53,6 +53,7 @@ export function EmailTab({ settings, onSaved }: { settings: Settings; onSaved: (
 
   return (
     <SectionCard
+      maw={640}
       title="Configurare email"
       description="Trimite remindere și mesaje prin serverul de email al firmei. Fără configurare, mesajele se deschid în aplicația ta de email, gata de trimis."
       icon={<IconMail size={21} stroke={1.7} />}
@@ -73,7 +74,7 @@ export function EmailTab({ settings, onSaved }: { settings: Settings; onSaved: (
           <Group grow align="flex-start">
             <TextInput
               label="Server SMTP"
-              placeholder="smtp.exemplu.ro"
+              placeholder="ex.: smtp.exemplu.ro"
               {...form.getInputProps('host')}
             />
             <NumberInput label="Port" min={1} max={65535} {...form.getInputProps('port')} />
@@ -87,7 +88,7 @@ export function EmailTab({ settings, onSaved }: { settings: Settings; onSaved: (
           <Divider label="Autentificare" labelPosition="left" my={4} />
 
           <Group grow align="flex-start">
-            <TextInput label="Utilizator" placeholder="nume@exemplu.ro" {...form.getInputProps('username')} />
+            <TextInput label="Utilizator" placeholder="ex.: nume@exemplu.ro" {...form.getInputProps('username')} />
             <PasswordInput
               label="Parolă"
               placeholder={settings.smtp.has_password ? '••••••••  (salvată)' : 'Parola contului'}
@@ -100,10 +101,10 @@ export function EmailTab({ settings, onSaved }: { settings: Settings; onSaved: (
           <Divider label="Expeditor" labelPosition="left" my={4} />
 
           <Group grow align="flex-start">
-            <TextInput label="Nume expeditor" placeholder="Tonik SRL" {...form.getInputProps('from_name')} />
+            <TextInput label="Nume expeditor" placeholder="ex.: Tonik SRL" {...form.getInputProps('from_name')} />
             <TextInput
               label="Email expeditor"
-              placeholder="office@exemplu.ro"
+              placeholder="ex.: office@exemplu.ro"
               {...form.getInputProps('from_email')}
             />
           </Group>

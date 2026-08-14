@@ -118,6 +118,16 @@ export class MessageRepository {
     );
   }
 
+  /** Contoare pentru tab-urile din pagina Mesaje. */
+  statusCounts(): { all: number; prepared: number; failed: number } {
+    const q = (sql: string) => this.db.get<{ n: number }>(sql)?.n ?? 0;
+    return {
+      all: q('SELECT COUNT(*) AS n FROM message_logs'),
+      prepared: q(`SELECT COUNT(*) AS n FROM message_logs WHERE status IN ('prepared','opened')`),
+      failed: q(`SELECT COUNT(*) AS n FROM message_logs WHERE status = 'failed'`),
+    };
+  }
+
   countFailed(): number {
     return (
       this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM message_logs WHERE status = 'failed'`)

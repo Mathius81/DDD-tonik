@@ -39,6 +39,7 @@ const api = {
   },
   reminders: {
     list: invoke(IPC.reminders.list),
+    counts: invoke(IPC.reminders.counts),
     retry: invoke(IPC.reminders.retry),
     cancel: invoke(IPC.reminders.cancel),
   },
@@ -52,6 +53,7 @@ const api = {
     preview: invoke(IPC.messages.preview),
     markSent: invoke(IPC.messages.markSent),
     log: invoke(IPC.messages.log),
+    counts: invoke(IPC.messages.counts),
   },
   dashboard: {
     get: invoke(IPC.dashboard.get),

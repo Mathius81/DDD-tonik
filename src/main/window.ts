@@ -1,13 +1,38 @@
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow, app, shell } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
+interface WindowState {
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+}
+
+function windowStateFile(): string {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function loadWindowState(): WindowState {
+  try {
+    const state = JSON.parse(fs.readFileSync(windowStateFile(), 'utf8')) as WindowState;
+    if (state.width >= 800 && state.height >= 500) return state;
+  } catch {
+    // prima pornire sau fișier corupt — folosim implicitele
+  }
+  return { width: 1280, height: 800 };
+}
+
 export function createMainWindow(): BrowserWindow {
+  const state = loadWindowState();
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: state.width,
+    height: state.height,
+    x: state.x,
+    y: state.y,
     minWidth: 1024,
     minHeight: 640,
     show: false,
@@ -26,6 +51,21 @@ export function createMainWindow(): BrowserWindow {
   });
 
   win.once('ready-to-show', () => win.show());
+
+  // Persistăm dimensiunea/poziția ferestrei (Brief §7.7).
+  const saveState = () => {
+    if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) return;
+    const [width, height] = win.getSize();
+    const [x, y] = win.getPosition();
+    try {
+      fs.writeFileSync(windowStateFile(), JSON.stringify({ width, height, x, y }));
+    } catch {
+      // nu blocăm închiderea pentru asta
+    }
+  };
+  win.on('resized', saveState);
+  win.on('moved', saveState);
+  win.on('close', saveState);
 
   // Orice încercare de deschidere de fereastră nouă merge în browserul extern,
   // dar numai pentru URL-uri https cunoscute — restul sunt refuzate.

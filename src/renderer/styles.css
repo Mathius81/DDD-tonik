@@ -235,3 +235,11 @@ table,
   box-shadow: var(--shadow-md);
   border-color: var(--border-strong);
 }
+
+/* Rând de timeline cu hover */
+.tonik-hover-row {
+  transition: background-color 120ms ease;
+}
+.tonik-hover-row:hover {
+  background: var(--bg-subtle);
+}

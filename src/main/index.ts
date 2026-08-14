@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import started from 'electron-squirrel-startup';
 import { createMainWindow } from './window';
+import { createAppMenu } from './menu';
 import { applyContentSecurityPolicy } from './security';
 import { resolveAppPaths } from './paths';
 import { Logger } from './logger';
@@ -52,6 +53,8 @@ if (!gotLock) {
       logger.error('Eroare la inițializarea aplicației', err);
       throw err;
     }
+
+    createAppMenu(() => mainWindow);
 
     const openWindow = () => {
       mainWindow = createMainWindow();

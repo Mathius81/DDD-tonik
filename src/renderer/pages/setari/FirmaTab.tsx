@@ -19,6 +19,7 @@ export function FirmaTab({ settings, onSaved }: { settings: Settings; onSaved: (
 
   return (
     <SectionCard
+      maw={640}
       title="Datele firmei"
       description="Aceste informații apar automat în mesajele trimise clienților (nume, telefon de contact)."
       icon={<IconBuilding size={21} stroke={1.7} />}
@@ -26,15 +27,15 @@ export function FirmaTab({ settings, onSaved }: { settings: Settings; onSaved: (
       <form onSubmit={submit}>
         <Stack gap="md">
           <Group grow align="flex-start">
-            <TextInput label="Denumire firmă" placeholder="Tonik SRL" {...form.getInputProps('name')} />
-            <TextInput label="CUI" placeholder="RO12345678" {...form.getInputProps('tax_id')} />
+            <TextInput label="Denumire firmă" placeholder="ex.: Tonik SRL" {...form.getInputProps('name')} />
+            <TextInput label="CUI" placeholder="ex.: RO12345678" {...form.getInputProps('tax_id')} />
           </Group>
           <TextInput label="Adresă" {...form.getInputProps('address')} />
           <Group grow align="flex-start">
-            <TextInput label="Telefon" placeholder="07xx xxx xxx" {...form.getInputProps('phone')} />
-            <TextInput label="Email" placeholder="office@exemplu.ro" {...form.getInputProps('email')} />
+            <TextInput label="Telefon" placeholder="ex.: 07xx xxx xxx" {...form.getInputProps('phone')} />
+            <TextInput label="Email" placeholder="ex.: office@exemplu.ro" {...form.getInputProps('email')} />
           </Group>
-          <TextInput label="Website" placeholder="https://" {...form.getInputProps('website')} />
+          <TextInput label="Website" placeholder="ex.: https://tonik.ro" {...form.getInputProps('website')} />
           <Group justify="flex-end" mt="sm">
             <Button type="submit">Salvează</Button>
           </Group>

@@ -56,4 +56,6 @@ export function registerMessageHandlers(ctx: AppContext, messaging: MessagingSer
   });
 
   handle(IPC.messages.log, messageLogFilterSchema, (filter) => ctx.messages.listLogs(filter));
+
+  handle(IPC.messages.counts, null, () => ctx.messages.statusCounts());
 }

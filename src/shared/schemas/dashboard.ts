@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { FollowupListItem } from './followup';
+import type { MessageLogListItem } from './message';
 
 export interface DashboardCounts {
   overdue: number;
@@ -12,6 +13,8 @@ export interface DashboardCounts {
 export interface DashboardData {
   counts: DashboardCounts;
   attention: FollowupListItem[];
+  scheduledToday: FollowupListItem[];
+  pendingMessages: MessageLogListItem[];
 }
 
 export const calendarMonthSchema = z.object({

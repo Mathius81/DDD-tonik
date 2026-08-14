@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { unaccentRo } from '../../shared/text';
 
 /**
  * Wrapper subțire peste node:sqlite.
@@ -12,6 +13,10 @@ export class Db {
     this.raw.exec('PRAGMA journal_mode = WAL');
     this.raw.exec('PRAGMA foreign_keys = ON');
     this.raw.exec('PRAGMA busy_timeout = 5000');
+    // Căutare fără diacritice: unaccent_ro('Ploiești') = 'ploiesti'.
+    this.raw.function('unaccent_ro', { deterministic: true }, (value) =>
+      typeof value === 'string' ? unaccentRo(value) : null,
+    );
   }
 
   run(sql: string, ...params: unknown[]): { changes: number | bigint; lastInsertRowid: number | bigint } {

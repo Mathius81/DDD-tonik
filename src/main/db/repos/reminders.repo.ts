@@ -91,6 +91,24 @@ export class ReminderRepository {
     );
   }
 
+  /** Contoare per fereastră pentru tab-urile din pagina Remindere. */
+  windowCounts(todayIso: string): Record<'today' | 'upcoming' | 'sent' | 'failed' | 'all', number> {
+    const q = (sql: string, ...p: unknown[]) => this.db.get<{ n: number }>(sql, ...p)?.n ?? 0;
+    return {
+      today: q(
+        `SELECT COUNT(*) AS n FROM reminders WHERE date(scheduled_at) = ? AND status IN ('pending','processing')`,
+        todayIso,
+      ),
+      upcoming: q(
+        `SELECT COUNT(*) AS n FROM reminders WHERE status = 'pending' AND date(scheduled_at) > ?`,
+        todayIso,
+      ),
+      sent: q(`SELECT COUNT(*) AS n FROM reminders WHERE status = 'sent'`),
+      failed: q(`SELECT COUNT(*) AS n FROM reminders WHERE status = 'failed'`),
+      all: q(`SELECT COUNT(*) AS n FROM reminders`),
+    };
+  }
+
   countFailed(): number {
     return (
       this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM reminders WHERE status = 'failed'`)

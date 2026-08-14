@@ -49,6 +49,7 @@ export function WhatsappTab({ settings, onSaved }: { settings: Settings; onSaved
 
   return (
     <SectionCard
+      maw={640}
       title="Configurare WhatsApp"
       description="Alege cum trimiți mesajele WhatsApp către clienți."
       icon={<IconBrandWhatsapp size={21} stroke={1.7} />}

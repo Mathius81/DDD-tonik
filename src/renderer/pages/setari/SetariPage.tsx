@@ -1,4 +1,5 @@
-import { Stack, Tabs } from '@mantine/core';
+import { useState } from 'react';
+import { Stack, UnstyledButton, Group } from '@mantine/core';
 import {
   IconBuilding,
   IconSpray,
@@ -20,7 +21,7 @@ import { WhatsappTab } from './WhatsappTab';
 import { BackupTab } from './BackupTab';
 import { AplicatieTab } from './AplicatieTab';
 
-const tabs = [
+const sections = [
   { value: 'firma', label: 'Firmă', icon: IconBuilding },
   { value: 'servicii', label: 'Servicii', icon: IconSpray },
   { value: 'remindere', label: 'Remindere', icon: IconBellRinging },
@@ -30,52 +31,68 @@ const tabs = [
   { value: 'aplicatie', label: 'Aplicație', icon: IconAdjustments },
 ];
 
+const LAST_TAB_KEY = 'tonik.settings.lastTab';
+
 export function SetariPage() {
   const { data: settings, reload } = useIpcQuery<Settings>(() => ddd.settings.get(), []);
+  const [active, setActive] = useState(
+    () => localStorage.getItem(LAST_TAB_KEY) ?? 'firma',
+  );
 
   if (!settings) return null;
 
+  const select = (value: string) => {
+    setActive(value);
+    localStorage.setItem(LAST_TAB_KEY, value);
+  };
+
   return (
-    <Stack gap="lg">
+    <Stack gap="var(--sp-4)">
       <PageHeader
         title="Setări"
         description="Configurează preferințele aplicației Tonik, canalele de comunicare și opțiunile de backup."
       />
 
-      <Tabs defaultValue="firma" variant="pills" radius="md" color="tonik">
-        <Tabs.List mb="xl" style={{ gap: 4 }}>
-          {tabs.map((t) => {
-            const Icon = t.icon;
+      <Group align="flex-start" gap="var(--sp-5)" wrap="nowrap">
+        {/* Sub-nav vertical (Brief §5.8) */}
+        <Stack gap={2} w={180} style={{ flexShrink: 0 }}>
+          {sections.map((s) => {
+            const Icon = s.icon;
+            const isActive = active === s.value;
             return (
-              <Tabs.Tab key={t.value} value={t.value} leftSection={<Icon size={16} stroke={1.7} />}>
-                {t.label}
-              </Tabs.Tab>
+              <UnstyledButton
+                key={s.value}
+                onClick={() => select(s.value)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  height: 32,
+                  padding: '0 10px',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--fs-body)',
+                  fontWeight: isActive ? 600 : 500,
+                  color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                  background: isActive ? 'var(--accent-soft)' : 'transparent',
+                }}
+              >
+                <Icon size={15} stroke={1.8} />
+                {s.label}
+              </UnstyledButton>
             );
           })}
-        </Tabs.List>
+        </Stack>
 
-        <Tabs.Panel value="firma">
-          <FirmaTab settings={settings} onSaved={reload} />
-        </Tabs.Panel>
-        <Tabs.Panel value="servicii">
-          <ServiciiTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="remindere">
-          <RemindereTab settings={settings} onSaved={reload} />
-        </Tabs.Panel>
-        <Tabs.Panel value="email">
-          <EmailTab settings={settings} onSaved={reload} />
-        </Tabs.Panel>
-        <Tabs.Panel value="whatsapp">
-          <WhatsappTab settings={settings} onSaved={reload} />
-        </Tabs.Panel>
-        <Tabs.Panel value="backup">
-          <BackupTab settings={settings} onSaved={reload} />
-        </Tabs.Panel>
-        <Tabs.Panel value="aplicatie">
-          <AplicatieTab settings={settings} onSaved={reload} />
-        </Tabs.Panel>
-      </Tabs>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {active === 'firma' && <FirmaTab settings={settings} onSaved={reload} />}
+          {active === 'servicii' && <ServiciiTab />}
+          {active === 'remindere' && <RemindereTab settings={settings} onSaved={reload} />}
+          {active === 'email' && <EmailTab settings={settings} onSaved={reload} />}
+          {active === 'whatsapp' && <WhatsappTab settings={settings} onSaved={reload} />}
+          {active === 'backup' && <BackupTab settings={settings} onSaved={reload} />}
+          {active === 'aplicatie' && <AplicatieTab settings={settings} onSaved={reload} />}
+        </div>
+      </Group>
     </Stack>
   );
 }

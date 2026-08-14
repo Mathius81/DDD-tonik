@@ -1,12 +1,11 @@
 import { handle } from './register';
 import { IPC } from '../../shared/ipc-contract';
 import { calendarMonthSchema } from '../../shared/schemas/dashboard';
-import type { DashboardData } from '../../shared/schemas/dashboard';
 import type { AppNotification, NotificationsData } from '../../shared/schemas/notifications';
 import type { AppContext } from '../app-context';
 
 export function registerDashboardHandlers(ctx: AppContext): void {
-  handle(IPC.dashboard.get, null, (): DashboardData => {
+  handle(IPC.dashboard.get, null, () => {
     const today = ctx.todayIso();
     const counts = ctx.followups.counts(today);
     return {
@@ -15,6 +14,10 @@ export function registerDashboardHandlers(ctx: AppContext): void {
         failed_messages: ctx.reminders.countFailed() + ctx.messages.countFailed(),
       },
       attention: ctx.followups.listAttention(today, 100),
+      scheduledToday: ctx.followups.listScheduledOn(today, today),
+      pendingMessages: ctx.messages
+        .listLogs({ status: 'prepared', page: 1, pageSize: 10 })
+        .items,
     };
   });
 

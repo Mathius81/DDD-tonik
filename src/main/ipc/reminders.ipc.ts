@@ -8,6 +8,8 @@ export function registerReminderHandlers(ctx: AppContext): void {
     ctx.reminders.list(filter, ctx.todayIso()),
   );
 
+  handle(IPC.reminders.counts, null, () => ctx.reminders.windowCounts(ctx.todayIso()));
+
   handle(IPC.reminders.retry, reminderRetrySchema, ({ id }) => {
     const reminder = ctx.reminders.getById(id);
     if (!reminder) throw new UserFacingError('Reminderul nu a fost găsit.');

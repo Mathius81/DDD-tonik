@@ -45,4 +45,5 @@ export interface AssociationListItem extends Association {
   primary_contact_phone: string | null;
   next_due_date: string | null;
   next_service_name: string | null;
+  active_services: string[];
 }

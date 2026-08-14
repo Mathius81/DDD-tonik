@@ -34,6 +34,7 @@ export const IPC = {
   },
   reminders: {
     list: 'reminders:list',
+    counts: 'reminders:counts',
     retry: 'reminders:retry',
     cancel: 'reminders:cancel',
   },
@@ -47,6 +48,7 @@ export const IPC = {
     preview: 'messages:preview',
     markSent: 'messages:markSent',
     log: 'messages:log',
+    counts: 'messages:counts',
   },
   dashboard: {
     get: 'dashboard:get',

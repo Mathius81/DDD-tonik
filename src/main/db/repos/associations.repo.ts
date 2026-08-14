@@ -7,6 +7,7 @@ import type {
   AssociationListItem,
 } from '../../../shared/schemas/association';
 import type { Paginated } from '../../../shared/schemas/common';
+import { unaccentRo as unaccent } from '../../../shared/text';
 
 interface AssociationRow extends Omit<Association, 'active'> {
   active: number;
@@ -14,6 +15,7 @@ interface AssociationRow extends Omit<Association, 'active'> {
   primary_contact_phone?: string | null;
   next_due_date?: string | null;
   next_service_name?: string | null;
+  active_services?: string | null;
 }
 
 function toAssociation(row: AssociationRow): Association {
@@ -30,15 +32,16 @@ export class AssociationRepository {
     if (filter.status === 'active') where.push('a.active = 1');
     if (filter.status === 'inactive') where.push('a.active = 0');
     if (filter.search) {
+      // unaccent_ro e o funcție SQL înregistrată în Db: 'ploiesti' găsește 'Ploiești'.
       where.push(`(
-        a.name LIKE ? OR a.address LIKE ? OR a.city LIKE ? OR EXISTS (
+        unaccent_ro(a.name) LIKE ? OR unaccent_ro(a.address) LIKE ? OR unaccent_ro(a.city) LIKE ? OR EXISTS (
           SELECT 1 FROM contacts c
           WHERE c.association_id = a.id AND c.deleted_at IS NULL
-            AND (c.name LIKE ? OR c.phone LIKE ?)
+            AND (unaccent_ro(c.name) LIKE ? OR c.phone LIKE ?)
         )
       )`);
-      const term = `%${filter.search}%`;
-      params.push(term, term, term, term, term);
+      const term = `%${unaccent(filter.search)}%`;
+      params.push(term, term, term, term, `%${filter.search}%`);
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -58,7 +61,10 @@ export class AssociationRepository {
           ORDER BY f.due_date LIMIT 1) AS next_due_date,
         (SELECT s.name FROM followups f JOIN services s ON s.id = f.service_id
           WHERE f.association_id = a.id AND f.status IN ('pending','contacted','scheduled')
-          ORDER BY f.due_date LIMIT 1) AS next_service_name
+          ORDER BY f.due_date LIMIT 1) AS next_service_name,
+        (SELECT GROUP_CONCAT(DISTINCT s.name) FROM followups f JOIN services s ON s.id = f.service_id
+          WHERE f.association_id = a.id AND f.status IN ('pending','contacted','scheduled')
+        ) AS active_services
       FROM associations a
       ${whereSql}
       ORDER BY a.name COLLATE NOCASE
@@ -76,6 +82,7 @@ export class AssociationRepository {
         primary_contact_phone: r.primary_contact_phone ?? null,
         next_due_date: r.next_due_date ?? null,
         next_service_name: r.next_service_name ?? null,
+        active_services: r.active_services ? r.active_services.split(',') : [],
       })),
       total,
       page: filter.page,

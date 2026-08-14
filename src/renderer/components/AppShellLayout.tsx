@@ -14,6 +14,10 @@ import { ddd } from '../api/ddd';
 import { unwrap } from '../api/useIpc';
 import { TonikLogo } from './TonikLogo';
 import { NotificationCenter } from './NotificationCenter';
+import { CommandPalette } from './CommandPalette';
+import { InterventionFormModal } from '../pages/interventii/InterventionFormModal';
+
+const pageOrder = ['/', '/asociatii', '/interventii', '/calendar', '/remindere', '/mesaje', '/setari'];
 
 const navSections: Array<{
   label: string | null;
@@ -69,10 +73,32 @@ export function AppShellLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [lastBackup, setLastBackup] = useState<BackupInfo | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [interventionOpen, setInterventionOpen] = useState(false);
 
   // Click pe notificarea Windows → main trimite ruta țintă.
   useEffect(() => {
     return ddd.events.onNavigate((route) => navigate(route));
+  }, [navigate]);
+
+  // Scurtături globale (Brief §7.2): ⌘K paletă, ⌘1..7 pagini, ⌘N intervenție.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      if (e.key === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      } else if (e.key === 'n') {
+        e.preventDefault();
+        setInterventionOpen(true);
+      } else if (e.key >= '1' && e.key <= '7') {
+        e.preventDefault();
+        navigate(pageOrder[Number(e.key) - 1]);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [navigate]);
 
   // Stare backup pentru subsolul sidebar-ului.
@@ -150,6 +176,17 @@ export function AppShellLayout() {
           <Outlet />
         </div>
       </AppShell.Main>
+
+      <CommandPalette
+        opened={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onAddIntervention={() => setInterventionOpen(true)}
+      />
+      <InterventionFormModal
+        opened={interventionOpen}
+        onClose={() => setInterventionOpen(false)}
+        onSaved={() => setInterventionOpen(false)}
+      />
     </AppShell>
   );
 }
