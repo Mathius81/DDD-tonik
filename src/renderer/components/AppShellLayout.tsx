@@ -62,7 +62,7 @@ export function AppShellLayout() {
           <TonikLogo />
         </Box>
 
-        <Box pb={14}>
+        <Box pb={28} mb={28} className="tonik-sidebar-divider">
           <NotificationCenter />
         </Box>
 
