@@ -66,6 +66,7 @@ const api = {
     update: invoke(IPC.settings.update),
     setSecret: invoke(IPC.settings.setSecret),
     testSmtp: invoke(IPC.settings.testSmtp),
+    sendDigestNow: invoke(IPC.settings.sendDigestNow),
     chooseBackupFolder: invoke(IPC.settings.chooseBackupFolder),
   },
   backup: {

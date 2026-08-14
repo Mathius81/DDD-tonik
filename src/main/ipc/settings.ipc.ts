@@ -6,12 +6,14 @@ import type { AppContext } from '../app-context';
 import type { SecretsService } from '../services/secrets.service';
 import type { MessagingService } from '../services/messaging/messaging.service';
 import type { StartupService } from '../services/startup.service';
+import type { DailyDigestService } from '../services/daily-digest.service';
 
 export function registerSettingsHandlers(
   ctx: AppContext,
   secrets: SecretsService,
   messaging: MessagingService,
   startup: StartupService,
+  digest: DailyDigestService,
 ): void {
   handle(IPC.settings.get, null, () => ctx.settings.get());
 
@@ -26,6 +28,19 @@ export function registerSettingsHandlers(
     secrets.set(key, value);
     ctx.logger.info(`Secret actualizat: ${key}`);
     return { saved: true };
+  });
+
+  // Trimite raportul zilei pe loc, pentru verificare din Setări.
+  handle(IPC.settings.sendDigestNow, null, async () => {
+    const settings = ctx.settings.get();
+    if (!settings.daily_digest.email) {
+      throw new UserFacingError('Completează mai întâi adresa de email a raportului.');
+    }
+    if (!settings.smtp.host) {
+      throw new UserFacingError('Configurează mai întâi emailul (Setări → Email).');
+    }
+    await digest.send(settings.daily_digest.email, ctx.todayIso());
+    return { sent: true };
   });
 
   handle(IPC.settings.testSmtp, null, async () => {

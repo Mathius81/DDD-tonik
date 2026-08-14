@@ -43,6 +43,15 @@ export const whatsappSettingsSchema = z.object({
   template_language: z.string().trim().max(10).default('ro'),
 });
 
+/** Raportul zilnic „planul zilei” trimis pe email (spec utilizator). */
+export const dailyDigestSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** Emailul destinatar; gol = dezactivat implicit. */
+  email: z.string().trim().max(200).default(''),
+  /** Ora locală 'HH:mm' la care se trimite. */
+  send_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('08:00'),
+});
+
 export const settingsSchema = z.object({
   company: companySettingsSchema.default(companySettingsSchema.parse({})),
   app: appSettingsSchema.default(appSettingsSchema.parse({})),
@@ -50,6 +59,7 @@ export const settingsSchema = z.object({
   smtp: smtpSettingsSchema.default(smtpSettingsSchema.parse({})),
   whatsapp: whatsappSettingsSchema.default(whatsappSettingsSchema.parse({})),
   reminder_rules: reminderRulesSchema.default(defaultReminderRules),
+  daily_digest: dailyDigestSettingsSchema.default(dailyDigestSettingsSchema.parse({})),
 });
 
 export type CompanySettings = z.infer<typeof companySettingsSchema>;
@@ -57,6 +67,7 @@ export type AppSettings = z.infer<typeof appSettingsSchema>;
 export type BackupSettings = z.infer<typeof backupSettingsSchema>;
 export type SmtpSettings = z.infer<typeof smtpSettingsSchema>;
 export type WhatsappSettings = z.infer<typeof whatsappSettingsSchema>;
+export type DailyDigestSettings = z.infer<typeof dailyDigestSettingsSchema>;
 export type Settings = z.infer<typeof settingsSchema>;
 
 /** Secrete scrise doar dinspre renderer spre main, niciodată citite înapoi. */

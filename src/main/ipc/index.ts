@@ -1,5 +1,6 @@
 import type { AppContext } from '../app-context';
 import type { MessagingService } from '../services/messaging/messaging.service';
+import type { DailyDigestService } from '../services/daily-digest.service';
 import type { SecretsService } from '../services/secrets.service';
 import type { StartupService } from '../services/startup.service';
 import type { BackupService } from '../services/backup.service';
@@ -18,6 +19,7 @@ import { registerBackupHandlers } from './backup.ipc';
 
 export interface IpcDependencies {
   messaging: MessagingService;
+  digest: DailyDigestService;
   secrets: SecretsService;
   startup: StartupService;
   backups: BackupService;
@@ -34,6 +36,6 @@ export function registerAllIpcHandlers(ctx: AppContext, deps: IpcDependencies): 
   registerDashboardHandlers(ctx);
   registerMessageHandlers(ctx, deps.messaging);
   registerReminderHandlers(ctx);
-  registerSettingsHandlers(ctx, deps.secrets, deps.messaging, deps.startup);
+  registerSettingsHandlers(ctx, deps.secrets, deps.messaging, deps.startup, deps.digest);
   registerBackupHandlers(ctx, deps.backups, deps.reopenDb);
 }

@@ -61,6 +61,7 @@ export const IPC = {
     update: 'settings:update',
     setSecret: 'settings:setSecret',
     testSmtp: 'settings:testSmtp',
+    sendDigestNow: 'settings:sendDigestNow',
     chooseBackupFolder: 'settings:chooseBackupFolder',
   },
   backup: {

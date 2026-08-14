@@ -7,6 +7,7 @@ import { SecretsService } from './services/secrets.service';
 import { MessagingService } from './services/messaging/messaging.service';
 import { NotificationService } from './services/notification.service';
 import { SchedulerService } from './services/scheduler.service';
+import { DailyDigestService } from './services/daily-digest.service';
 import { BackupService } from './services/backup.service';
 import { StartupService } from './services/startup.service';
 import { createTray } from './tray';
@@ -54,11 +55,13 @@ export async function bootstrap(boot: BootstrapContext): Promise<BootstrapResult
   const secrets = new SecretsService(ctx.settings);
   const messaging = new MessagingService(ctx, secrets);
   const notifications = new NotificationService(ctx);
-  const scheduler = new SchedulerService(ctx, notifications, messaging);
+  const digest = new DailyDigestService(ctx, messaging);
+  const scheduler = new SchedulerService(ctx, notifications, messaging, digest);
   const startup = new StartupService(boot.logger);
 
   registerAllIpcHandlers(ctx, {
     messaging,
+    digest,
     secrets,
     startup,
     backups,

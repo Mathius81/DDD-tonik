@@ -1,6 +1,7 @@
 import type { AppContext } from '../app-context';
 import type { NotificationService } from './notification.service';
 import type { MessagingService } from './messaging/messaging.service';
+import type { DailyDigestService } from './daily-digest.service';
 import { formatRo } from '../../shared/dates';
 import type { Reminder } from '../../shared/schemas/reminder';
 
@@ -18,6 +19,7 @@ export class SchedulerService {
     private ctx: AppContext,
     private notifications: NotificationService,
     private messaging: MessagingService,
+    private digest?: DailyDigestService,
   ) {}
 
   start(): void {
@@ -34,6 +36,9 @@ export class SchedulerService {
   }
 
   async tick(isStartup: boolean): Promise<void> {
+    // Raportul zilnic „planul zilei” — își verifică singur ora și ziua.
+    await this.digest?.tick();
+
     const now = this.ctx.nowLocalIso();
     const today = this.ctx.todayIso();
     const due = this.ctx.reminders.listDue(now);

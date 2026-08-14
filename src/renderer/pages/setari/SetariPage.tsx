@@ -8,6 +8,7 @@ import {
   IconBrandWhatsapp,
   IconDatabase,
   IconAdjustments,
+  IconSunrise,
 } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { useIpcQuery } from '../../api/useIpc';
@@ -17,6 +18,7 @@ import { FirmaTab } from './FirmaTab';
 import { ServiciiTab } from './ServiciiTab';
 import { RemindereTab } from './RemindereTab';
 import { EmailTab } from './EmailTab';
+import { RaportZilnicTab } from './RaportZilnicTab';
 import { WhatsappTab } from './WhatsappTab';
 import { BackupTab } from './BackupTab';
 import { AplicatieTab } from './AplicatieTab';
@@ -26,6 +28,7 @@ const sections = [
   { value: 'servicii', label: 'Servicii', icon: IconSpray },
   { value: 'remindere', label: 'Remindere', icon: IconBellRinging },
   { value: 'email', label: 'Email', icon: IconMail },
+  { value: 'raport', label: 'Raport zilnic', icon: IconSunrise },
   { value: 'whatsapp', label: 'WhatsApp', icon: IconBrandWhatsapp },
   { value: 'backup', label: 'Backup', icon: IconDatabase },
   { value: 'aplicatie', label: 'Aplicație', icon: IconAdjustments },
@@ -88,6 +91,9 @@ export function SetariPage() {
           {active === 'servicii' && <ServiciiTab />}
           {active === 'remindere' && <RemindereTab settings={settings} onSaved={reload} />}
           {active === 'email' && <EmailTab settings={settings} onSaved={reload} />}
+          {active === 'raport' && (
+            <RaportZilnicTab settings={settings} onSaved={reload} goToEmail={() => select('email')} />
+          )}
           {active === 'whatsapp' && <WhatsappTab settings={settings} onSaved={reload} />}
           {active === 'backup' && <BackupTab settings={settings} onSaved={reload} />}
           {active === 'aplicatie' && <AplicatieTab settings={settings} onSaved={reload} />}
