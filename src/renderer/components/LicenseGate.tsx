@@ -33,7 +33,13 @@ export function LicenseGate({ children }: { children: ReactNode }) {
     load();
     // Reverificare o dată pe oră, ca blocarea să se aplice și cu aplicația deschisă.
     const timer = setInterval(load, 60 * 60 * 1000);
-    return () => clearInterval(timer);
+    // Activarea unei chei (inclusiv din Setări → Licență) emite dataChanged —
+    // banner-ul se actualizează imediat, nu la următoarea repornire.
+    const unsubscribe = ddd.events.onDataChanged(load);
+    return () => {
+      clearInterval(timer);
+      unsubscribe();
+    };
   }, []);
 
   const activate = async () => {
