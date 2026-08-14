@@ -9,6 +9,7 @@ import {
   IconDatabase,
   IconAdjustments,
   IconSunrise,
+  IconCertificate,
 } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { useIpcQuery } from '../../api/useIpc';
@@ -19,6 +20,7 @@ import { ServiciiTab } from './ServiciiTab';
 import { RemindereTab } from './RemindereTab';
 import { EmailTab } from './EmailTab';
 import { RaportZilnicTab } from './RaportZilnicTab';
+import { LicentaTab } from './LicentaTab';
 import { WhatsappTab } from './WhatsappTab';
 import { BackupTab } from './BackupTab';
 import { AplicatieTab } from './AplicatieTab';
@@ -32,6 +34,7 @@ const sections = [
   { value: 'whatsapp', label: 'WhatsApp', icon: IconBrandWhatsapp },
   { value: 'backup', label: 'Backup', icon: IconDatabase },
   { value: 'aplicatie', label: 'Aplicație', icon: IconAdjustments },
+  { value: 'licenta', label: 'Licență', icon: IconCertificate },
 ];
 
 const LAST_TAB_KEY = 'tonik.settings.lastTab';
@@ -97,6 +100,7 @@ export function SetariPage() {
           {active === 'whatsapp' && <WhatsappTab settings={settings} onSaved={reload} />}
           {active === 'backup' && <BackupTab settings={settings} onSaved={reload} />}
           {active === 'aplicatie' && <AplicatieTab settings={settings} onSaved={reload} />}
+          {active === 'licenta' && <LicentaTab />}
         </div>
       </Group>
     </Stack>

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Center, Stack, Text, TextInput, Button, Card, Group } from '@mantine/core';
+import { Center, Stack, Text, TextInput, Button, Card, Group, Modal, UnstyledButton } from '@mantine/core';
 import { IconLock, IconKey } from '@tabler/icons-react';
 import { ddd } from '../api/ddd';
 import { unwrap, runMutation } from '../api/useIpc';
@@ -22,6 +22,7 @@ export function LicenseGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<LicenseState | null>(null);
   const [token, setToken] = useState('');
   const [activating, setActivating] = useState(false);
+  const [renewOpen, setRenewOpen] = useState(false);
 
   const load = () =>
     unwrap<LicenseState>(ddd.license.check())
@@ -45,6 +46,7 @@ export function LicenseGate({ children }: { children: ReactNode }) {
     if (result) {
       setToken('');
       setState(result);
+      setRenewOpen(false);
     }
   };
 
@@ -54,8 +56,11 @@ export function LicenseGate({ children }: { children: ReactNode }) {
     return (
       <>
         {state.warning && (
-          <div
+          <UnstyledButton
+            onClick={() => setRenewOpen(true)}
             style={{
+              display: 'block',
+              width: '100%',
               background: 'var(--warning-soft)',
               color: 'var(--warning)',
               fontSize: 'var(--fs-small)',
@@ -68,10 +73,39 @@ export function LicenseGate({ children }: { children: ReactNode }) {
             {state.daysLeft === 0
               ? 'astăzi'
               : `în ${pluralRo(state.daysLeft ?? 0, 'zi', 'zile')}`}{' '}
-            ({fmtDate(state.expiresAt!)}). Contactează furnizorul pentru o cheie nouă.
-          </div>
+            ({fmtDate(state.expiresAt!)}). Ai deja cheia nouă? Apasă aici ca să o introduci.
+          </UnstyledButton>
         )}
         {children}
+
+        {/* Reînnoire înainte de expirare — cheia nouă se poate introduce oricând. */}
+        <Modal
+          opened={renewOpen}
+          onClose={() => setRenewOpen(false)}
+          title="Reînnoiește licența"
+        >
+          <Stack gap="var(--sp-3)">
+            <Text size="var(--fs-body)" c="var(--text-muted)">
+              Licența actuală este valabilă până la {fmtDate(state.expiresAt!)}. Introdu cheia
+              nouă primită de la furnizor — se aplică imediat, fără întrerupere.
+            </Text>
+            <TextInput
+              placeholder="TONIK-..."
+              leftSection={<IconKey size={15} />}
+              value={token}
+              onChange={(e) => setToken(e.currentTarget.value)}
+              onKeyDown={(e) => e.key === 'Enter' && token.trim() && activate()}
+            />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setRenewOpen(false)}>
+                Renunță
+              </Button>
+              <Button onClick={activate} loading={activating} disabled={!token.trim()}>
+                Activează
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </>
     );
   }
