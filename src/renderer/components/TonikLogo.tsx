@@ -8,23 +8,14 @@ export function TonikLogo() {
         src={logoUrl}
         alt="Tonik"
         style={{
-          height: 44,
-          width: 'auto',
+          width: '100%',
+          maxWidth: 190,
+          height: 'auto',
           display: 'block',
           margin: '0 auto',
-          filter: 'drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4))',
+          filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4))',
         }}
       />
-      <div
-        style={{
-          fontSize: 11,
-          color: 'var(--text-on-dark-muted)',
-          marginTop: 6,
-          letterSpacing: '0.02em',
-        }}
-      >
-        Dezinsecție · Deratizare · Dezinfecție
-      </div>
     </div>
   );
 }
