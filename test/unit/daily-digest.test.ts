@@ -80,7 +80,15 @@ describe('DailyDigestService', () => {
     ctx.settings.save({
       ...ctx.settings.get(),
       smtp: { ...ctx.settings.get().smtp, host: 'smtp.test' },
-      daily_digest: { enabled: true, email: 'sef@tonik.ro', send_at: '08:00' },
+      daily_digest: {
+        enabled: true,
+        email: '',
+        recipients: [
+          { email: 'sef@tonik.ro', active: true },
+          { email: 'oprit@tonik.ro', active: false },
+        ],
+        send_at: '08:00',
+      },
     });
     vi.spyOn(digest, 'send').mockImplementation(async (to) => {
       sent.push(to);
@@ -93,7 +101,7 @@ describe('DailyDigestService', () => {
     vi.spyOn(later.digest, 'send').mockImplementation(async (to) => {
       sent.push(to);
     });
-    await later.digest.tick(); // 08:10 — trimite
+    await later.digest.tick(); // 08:10 — trimite doar către destinatarii activi
     expect(sent).toEqual(['sef@tonik.ro']);
 
     await later.digest.tick(); // același apel în aceeași zi — nu retrimite
@@ -106,7 +114,12 @@ describe('DailyDigestService', () => {
     ctx.settings.save({
       ...ctx.settings.get(),
       smtp: { ...ctx.settings.get().smtp, host: 'smtp.test' },
-      daily_digest: { enabled: false, email: 'sef@tonik.ro', send_at: '08:00' },
+      daily_digest: {
+        enabled: false,
+        email: '',
+        recipients: [{ email: 'sef@tonik.ro', active: true }],
+        send_at: '08:00',
+      },
     });
     await digest.tick();
     expect(spy).not.toHaveBeenCalled();

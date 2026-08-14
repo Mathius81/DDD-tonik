@@ -43,10 +43,18 @@ export const whatsappSettingsSchema = z.object({
   template_language: z.string().trim().max(10).default('ro'),
 });
 
+/** Un destinatar al raportului zilnic, cu comutator individual. */
+export const digestRecipientSchema = z.object({
+  email: z.string().trim().max(200),
+  active: z.boolean().default(true),
+});
+
 /** Raportul zilnic „planul zilei” trimis pe email (spec utilizator). */
 export const dailyDigestSettingsSchema = z.object({
   enabled: z.boolean().default(false),
-  /** Emailul destinatar; gol = dezactivat implicit. */
+  /** Destinatarii; raportul pleacă doar către cei activi. */
+  recipients: z.array(digestRecipientSchema).max(20).default([]),
+  /** Câmp vechi (un singur email) — migrat automat în `recipients` la citire. */
   email: z.string().trim().max(200).default(''),
   /** Ora locală 'HH:mm' la care se trimite. */
   send_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('08:00'),
@@ -67,6 +75,7 @@ export type AppSettings = z.infer<typeof appSettingsSchema>;
 export type BackupSettings = z.infer<typeof backupSettingsSchema>;
 export type SmtpSettings = z.infer<typeof smtpSettingsSchema>;
 export type WhatsappSettings = z.infer<typeof whatsappSettingsSchema>;
+export type DigestRecipient = z.infer<typeof digestRecipientSchema>;
 export type DailyDigestSettings = z.infer<typeof dailyDigestSettingsSchema>;
 export type Settings = z.infer<typeof settingsSchema>;
 

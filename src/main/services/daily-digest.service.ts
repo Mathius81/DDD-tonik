@@ -21,7 +21,8 @@ export class DailyDigestService {
   async tick(): Promise<void> {
     const settings = this.ctx.settings.get();
     const digest = settings.daily_digest;
-    if (!digest.enabled || !digest.email || !settings.smtp.host) return;
+    const active = digest.recipients.filter((r) => r.active && r.email);
+    if (!digest.enabled || active.length === 0 || !settings.smtp.host) return;
 
     const today = this.ctx.todayIso();
     if (this.ctx.settings.getRaw(LAST_DIGEST_KEY) === today) return;
@@ -31,13 +32,20 @@ export class DailyDigestService {
     const [hh, mm] = digest.send_at.split(':').map(Number);
     if (now.getHours() * 60 + now.getMinutes() < hh * 60 + mm) return;
 
-    try {
-      await this.send(digest.email, today);
+    // Un singur corp de mesaj, trimis fiecărui destinatar activ.
+    const failures: string[] = [];
+    for (const recipient of active) {
+      try {
+        await this.send(recipient.email, today);
+        this.ctx.logger.info(`Raport zilnic trimis către ${recipient.email}`);
+      } catch (err) {
+        failures.push(recipient.email);
+        this.ctx.logger.error(`Raportul zilnic către ${recipient.email} a eșuat`, err);
+      }
+    }
+    // Marcăm ziua doar dacă măcar un destinatar a primit; altfel reîncearcă tot lotul.
+    if (failures.length < active.length) {
       this.ctx.settings.setRaw(LAST_DIGEST_KEY, today);
-      this.ctx.logger.info(`Raport zilnic trimis către ${digest.email}`);
-    } catch (err) {
-      // Nu marcăm ziua — reîncearcă la următorul tick (10 min).
-      this.ctx.logger.error('Trimiterea raportului zilnic a eșuat', err);
     }
   }
 

@@ -17,7 +17,15 @@ export class SettingsRepository {
     );
     if (!row) return settingsSchema.parse({});
     try {
-      return settingsSchema.parse(JSON.parse(row.value));
+      const settings = settingsSchema.parse(JSON.parse(row.value));
+      // Migrare: câmpul vechi cu un singur email devine primul destinatar.
+      if (settings.daily_digest.email && settings.daily_digest.recipients.length === 0) {
+        settings.daily_digest.recipients = [
+          { email: settings.daily_digest.email, active: true },
+        ];
+        settings.daily_digest.email = '';
+      }
+      return settings;
     } catch {
       // Setări corupte — pornim de la valorile implicite, nu blocăm aplicația.
       return settingsSchema.parse({});

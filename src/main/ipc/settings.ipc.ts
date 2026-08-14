@@ -33,14 +33,17 @@ export function registerSettingsHandlers(
   // Trimite raportul zilei pe loc, pentru verificare din Setări.
   handle(IPC.settings.sendDigestNow, null, async () => {
     const settings = ctx.settings.get();
-    if (!settings.daily_digest.email) {
-      throw new UserFacingError('Completează mai întâi adresa de email a raportului.');
+    const active = settings.daily_digest.recipients.filter((r) => r.active && r.email);
+    if (active.length === 0) {
+      throw new UserFacingError('Adaugă mai întâi cel puțin un email activ.');
     }
     if (!settings.smtp.host) {
       throw new UserFacingError('Configurează mai întâi emailul (Setări → Email).');
     }
-    await digest.send(settings.daily_digest.email, ctx.todayIso());
-    return { sent: true };
+    for (const r of active) {
+      await digest.send(r.email, ctx.todayIso());
+    }
+    return { sent: active.length };
   });
 
   handle(IPC.settings.testSmtp, null, async () => {
