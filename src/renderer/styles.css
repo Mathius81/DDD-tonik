@@ -97,12 +97,28 @@ body {
 
 .tonik-todo-card[data-alert] {
   background: rgba(20, 184, 160, 0.14);
-  border-color: rgba(20, 184, 160, 0.32);
+  border-color: rgba(20, 184, 160, 0.45);
+  animation: tonik-todo-pulse 2.4s ease-in-out infinite;
 }
 
 .tonik-todo-card[data-alert]:hover {
   background: rgba(20, 184, 160, 0.2);
-  border-color: rgba(20, 184, 160, 0.45);
+  animation-play-state: paused;
+  border-color: rgba(53, 192, 168, 0.9);
+  box-shadow: 0 0 0 4px rgba(20, 184, 160, 0.18);
+}
+
+/* Puls discret pe bordură + halou, când există sarcini de făcut azi */
+@keyframes tonik-todo-pulse {
+  0%,
+  100% {
+    border-color: rgba(20, 184, 160, 0.35);
+    box-shadow: 0 0 0 0 rgba(20, 184, 160, 0);
+  }
+  50% {
+    border-color: rgba(53, 192, 168, 0.95);
+    box-shadow: 0 0 0 5px rgba(20, 184, 160, 0.14);
+  }
 }
 
 .tonik-todo-icon {
