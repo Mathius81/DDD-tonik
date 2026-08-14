@@ -69,6 +69,10 @@ const api = {
     sendDigestNow: invoke(IPC.settings.sendDigestNow),
     chooseBackupFolder: invoke(IPC.settings.chooseBackupFolder),
   },
+  license: {
+    check: invoke(IPC.license.check),
+    activate: invoke(IPC.license.activate),
+  },
   backup: {
     create: invoke(IPC.backup.create),
     list: invoke(IPC.backup.list),

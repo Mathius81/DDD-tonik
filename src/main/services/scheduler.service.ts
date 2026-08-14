@@ -2,6 +2,7 @@ import type { AppContext } from '../app-context';
 import type { NotificationService } from './notification.service';
 import type { MessagingService } from './messaging/messaging.service';
 import type { DailyDigestService } from './daily-digest.service';
+import type { LicenseService } from './license.service';
 import { formatRo } from '../../shared/dates';
 import { renderEmailHtml, textToHtml, logoAttachment } from './messaging/email-template';
 import type { Reminder } from '../../shared/schemas/reminder';
@@ -21,6 +22,7 @@ export class SchedulerService {
     private notifications: NotificationService,
     private messaging: MessagingService,
     private digest?: DailyDigestService,
+    private license?: LicenseService,
   ) {}
 
   start(): void {
@@ -37,6 +39,9 @@ export class SchedulerService {
   }
 
   async tick(isStartup: boolean): Promise<void> {
+    // Fără licență validă nu se trimite nimic automat.
+    if (this.license && this.license.check().status !== 'valid') return;
+
     // Raportul zilnic „planul zilei” — își verifică singur ora și ziua.
     await this.digest?.tick();
 

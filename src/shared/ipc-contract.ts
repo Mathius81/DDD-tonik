@@ -64,6 +64,10 @@ export const IPC = {
     sendDigestNow: 'settings:sendDigestNow',
     chooseBackupFolder: 'settings:chooseBackupFolder',
   },
+  license: {
+    check: 'license:check',
+    activate: 'license:activate',
+  },
   backup: {
     create: 'backup:create',
     list: 'backup:list',

@@ -8,6 +8,7 @@ import { CalendarPage } from './pages/calendar/CalendarPage';
 import { ReminderePage } from './pages/remindere/ReminderePage';
 import { MesajePage } from './pages/mesaje/MesajePage';
 import { SetariPage } from './pages/setari/SetariPage';
+import { LicenseGate } from './components/LicenseGate';
 
 const router = createHashRouter([
   {
@@ -27,5 +28,9 @@ const router = createHashRouter([
 ]);
 
 export function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <LicenseGate>
+      <RouterProvider router={router} />
+    </LicenseGate>
+  );
 }

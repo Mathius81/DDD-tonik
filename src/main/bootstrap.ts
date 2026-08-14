@@ -10,6 +10,7 @@ import { SchedulerService } from './services/scheduler.service';
 import { DailyDigestService } from './services/daily-digest.service';
 import { BackupService } from './services/backup.service';
 import { StartupService } from './services/startup.service';
+import { LicenseService } from './services/license.service';
 import { createTray } from './tray';
 import type { AppPaths } from './paths';
 import type { Logger } from './logger';
@@ -52,16 +53,18 @@ export async function bootstrap(boot: BootstrapContext): Promise<BootstrapResult
   if (applied.length) boot.logger.info(`Migrații aplicate: ${applied.join(', ')}`);
   boot.logger.info(`Schema DB versiunea ${currentSchemaVersion(db)}`);
 
+  const license = new LicenseService(ctx.settings, boot.logger);
   const secrets = new SecretsService(ctx.settings);
   const messaging = new MessagingService(ctx, secrets);
   const notifications = new NotificationService(ctx);
   const digest = new DailyDigestService(ctx, messaging);
-  const scheduler = new SchedulerService(ctx, notifications, messaging, digest);
+  const scheduler = new SchedulerService(ctx, notifications, messaging, digest, license);
   const startup = new StartupService(boot.logger);
 
   registerAllIpcHandlers(ctx, {
     messaging,
     digest,
+    license,
     secrets,
     startup,
     backups,
