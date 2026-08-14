@@ -11,6 +11,7 @@ import {
   SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useNavigate } from 'react-router-dom';
 import { ddd } from '../../api/ddd';
 import { runMutation, unwrap } from '../../api/useIpc';
 import type { FollowupListItem } from '../../../shared/schemas/followup';
@@ -28,7 +29,9 @@ interface Props {
  * - Email: trimite prin SMTP-ul configurat.
  */
 export function SendMessageModal({ followup, onClose, onSent }: Props) {
+  const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactsLoaded, setContactsLoaded] = useState(false);
   const [contactId, setContactId] = useState<string | null>(null);
   const [channel, setChannel] = useState<'whatsapp' | 'email'>('whatsapp');
   const [body, setBody] = useState('');
@@ -36,11 +39,13 @@ export function SendMessageModal({ followup, onClose, onSent }: Props) {
 
   useEffect(() => {
     if (!followup) return;
+    setContactsLoaded(false);
     unwrap<Contact[]>(
       ddd.contacts.listByAssociation({ association_id: followup.association_id }),
     ).then(
       (list) => {
         setContacts(list);
+        setContactsLoaded(true);
         const primary = list.find((c) => c.is_primary) ?? list[0];
         if (primary) setContactId(String(primary.id));
       },
@@ -108,6 +113,36 @@ export function SendMessageModal({ followup, onClose, onSent }: Props) {
       onSent();
     }
   };
+
+  // Fără contacte nu avem destinatar și nici textul (numele intră în mesaj).
+  if (contactsLoaded && contacts.length === 0) {
+    return (
+      <Modal opened onClose={onClose} title="Trimite mesaj" size="lg">
+        <Stack>
+          <Text size="sm" c="dimmed">
+            {followup.association_name} · {followup.service_name}
+          </Text>
+          <Alert color="yellow" variant="light">
+            Această asociație nu are încă nicio persoană de contact, așa că nu avem cui să
+            trimitem mesajul. Adaugă mai întâi un contact cu telefon sau email.
+          </Alert>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Renunță
+            </Button>
+            <Button
+              onClick={() => {
+                onClose();
+                navigate(`/asociatii/${followup.association_id}`);
+              }}
+            >
+              Adaugă contact
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    );
+  }
 
   return (
     <Modal opened onClose={onClose} title="Trimite mesaj" size="lg">
