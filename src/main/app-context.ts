@@ -8,6 +8,11 @@ import { FollowupRepository } from './db/repos/followups.repo';
 import { ReminderRepository } from './db/repos/reminders.repo';
 import { MessageRepository } from './db/repos/messages.repo';
 import { SettingsRepository } from './db/repos/settings.repo';
+import { CarpetClientRepository } from './db/repos/carpet-clients.repo';
+import { CarpetOrderRepository } from './db/repos/carpet-orders.repo';
+import { TyreClientRepository } from './db/repos/tyre-clients.repo';
+import { TyreVehicleRepository } from './db/repos/tyre-vehicles.repo';
+import { TyreStorageRepository } from './db/repos/tyre-storage.repo';
 import type { AppPaths } from './paths';
 import type { Logger } from './logger';
 import { todayIso } from '../shared/dates';
@@ -22,6 +27,13 @@ export class AppContext {
   readonly reminders: ReminderRepository;
   readonly messages: MessageRepository;
   readonly settings: SettingsRepository;
+  /** Spațiul de lucru Covoare — date complet separate de DDD. */
+  readonly carpetClients: CarpetClientRepository;
+  readonly carpetOrders: CarpetOrderRepository;
+  /** Spațiul de lucru Cauciucuri — date complet separate de DDD/Covoare. */
+  readonly tyreClients: TyreClientRepository;
+  readonly tyreVehicles: TyreVehicleRepository;
+  readonly tyreStorage: TyreStorageRepository;
 
   constructor(
     public db: Db,
@@ -38,6 +50,11 @@ export class AppContext {
     this.reminders = new ReminderRepository(db);
     this.messages = new MessageRepository(db);
     this.settings = new SettingsRepository(db);
+    this.carpetClients = new CarpetClientRepository(db);
+    this.carpetOrders = new CarpetOrderRepository(db);
+    this.tyreClients = new TyreClientRepository(db);
+    this.tyreVehicles = new TyreVehicleRepository(db);
+    this.tyreStorage = new TyreStorageRepository(db);
   }
 
   todayIso(): string {

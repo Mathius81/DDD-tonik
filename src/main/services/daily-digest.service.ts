@@ -1,129 +1,241 @@
+import { shell } from 'electron';
 import type { AppContext } from '../app-context';
 import type { MessagingService } from './messaging/messaging.service';
-import { formatRo } from '../../shared/dates';
-import { roLongDate, pluralRo, dueContext } from '../../shared/text';
-import type { FollowupListItem } from '../../shared/schemas/followup';
+import type { NotificationService } from './notification.service';
 import { renderEmailHtml, textToHtml, logoAttachment } from './messaging/email-template';
+import { normalizePhoneE164 } from './messaging/template-render';
+import { reportIds, type DailyReportSettings, type ReportId, type Settings } from '../../shared/schemas/settings';
+import type { Contact } from '../../shared/schemas/contact';
+import { buildReportContent, type ReportContent } from './reports/report-builder';
 
+/** Cheia veche (un singur raport global) — păstrată doar pentru „puntea” de compatibilitate. */
 const LAST_DIGEST_KEY = 'last_daily_digest_date';
 
+export interface ChannelResult {
+  channel: 'email' | 'whatsapp' | 'notification';
+  ok: boolean;
+  error?: string;
+}
+
+export interface RunReportResult {
+  /** false dacă raportul n-a fost măcar încercat (dezactivat, oră netrecută sau deja trimis azi). */
+  attempted: boolean;
+  /** true dacă cel puțin un canal a reușit. */
+  sent: boolean;
+  /** true dacă raportul n-a avut niciun conținut de trimis (și a fost sărit intenționat). */
+  empty: boolean;
+  failures: ChannelResult[];
+}
+
 /**
- * Raportul zilnic „planul zilei”, trimis pe emailul configurat în Setări.
- * Rulează din scheduler: la ora setată sau la prima pornire de după ea
+ * Rapoartele zilnice „planul zilei” — 6 rapoarte independente (DDD/Covoare/Cauciucuri ×
+ * dimineața/seara), fiecare cu propriul orar, propriile canale (email/WhatsApp/notificare
+ * desktop) și propriul marcaj „trimis azi”, ca să nu se blocheze reciproc.
+ *
+ * Rulează din scheduler: la ora setată a fiecărui raport, sau la prima pornire de după ea
  * (catch-up dacă PC-ul a fost oprit la ora programată).
  */
 export class DailyDigestService {
   constructor(
     private ctx: AppContext,
     private messaging: MessagingService,
+    private notifications: NotificationService,
   ) {}
 
-  /** Apelat la fiecare tick al scheduler-ului. */
+  /** Apelat la fiecare tick al scheduler-ului — încearcă toate cele 6 rapoarte. */
   async tick(): Promise<void> {
-    const settings = this.ctx.settings.get();
-    const digest = settings.daily_digest;
-    const active = digest.recipients.filter((r) => r.active && r.email);
-    if (!digest.enabled || active.length === 0 || !settings.smtp.host) return;
-
-    const today = this.ctx.todayIso();
-    if (this.ctx.settings.getRaw(LAST_DIGEST_KEY) === today) return;
-
-    // Trimitem doar după ora configurată (sau la prima pornire de după).
-    const now = this.ctx.now();
-    const [hh, mm] = digest.send_at.split(':').map(Number);
-    if (now.getHours() * 60 + now.getMinutes() < hh * 60 + mm) return;
-
-    // Un singur corp de mesaj, trimis fiecărui destinatar activ.
-    const failures: string[] = [];
-    for (const recipient of active) {
+    for (const id of reportIds) {
       try {
-        await this.send(recipient.email, today);
-        this.ctx.logger.info(`Raport zilnic trimis către ${recipient.email}`);
+        await this.runReport(id, { force: false });
       } catch (err) {
-        failures.push(recipient.email);
-        this.ctx.logger.error(`Raportul zilnic către ${recipient.email} a eșuat`, err);
+        // Un raport eșuat nu trebuie să blocheze celelalte 5.
+        this.ctx.logger.error(`Raportul ${id} a eșuat la tick`, err);
       }
     }
-    // Marcăm ziua doar dacă măcar un destinatar a primit; altfel reîncearcă tot lotul.
-    if (failures.length < active.length) {
-      this.ctx.settings.setRaw(LAST_DIGEST_KEY, today);
+  }
+
+  /** Trimite acum raportul cerut, forțat (folosit de butonul „Trimite acum, de probă”). */
+  async sendNow(id: ReportId): Promise<RunReportResult> {
+    return this.runReport(id, { force: true });
+  }
+
+  private sentKey(id: ReportId): string {
+    return `${LAST_DIGEST_KEY}::${id}`;
+  }
+
+  private markSentToday(id: ReportId, todayIso: string): void {
+    this.ctx.settings.setRaw(this.sentKey(id), todayIso);
+  }
+
+  /**
+   * Punte de compatibilitate, o singură dată: dacă marcajul nou per-raport pentru
+   * „ddd_dimineata” nu există încă, dar cel vechi (global) arată că s-a trimis deja azi,
+   * copiem valoarea — altfel raportul de dimineață DDD s-ar putea retrimite chiar în ziua
+   * actualizării aplicației, deși fusese deja trimis azi sub sistemul vechi.
+   */
+  private bridgeLegacyKey(id: ReportId, todayIso: string): void {
+    if (id !== 'ddd_dimineata') return;
+    const newKey = this.sentKey(id);
+    if (this.ctx.settings.getRaw(newKey) !== undefined) return;
+    const legacy = this.ctx.settings.getRaw(LAST_DIGEST_KEY);
+    if (legacy === todayIso) {
+      this.ctx.settings.setRaw(newKey, legacy);
     }
   }
 
-  /** Construiește și trimite raportul. Aruncă la eșec SMTP. */
-  async send(to: string, todayIsoDate: string): Promise<void> {
-    const body = this.buildBody(todayIsoDate);
-    const result = await this.messaging.emailProvider().send({
-      to,
-      subject: `Planul zilei · ${formatRo(todayIsoDate)} · Tonik`,
-      body,
-      html: renderEmailHtml(textToHtml(body), this.ctx.settings.get().company),
-      attachments: [logoAttachment()],
-    });
-    if (!result.ok) throw new Error(result.error ?? 'SMTP a refuzat mesajul');
+  private async runReport(id: ReportId, opts: { force: boolean }): Promise<RunReportResult> {
+    const settings = this.ctx.settings.get();
+    const report = settings.daily_digest.reports[id];
+    const todayIso = this.ctx.todayIso();
+
+    if (!opts.force) {
+      if (!report.enabled) return { attempted: false, sent: false, empty: false, failures: [] };
+
+      const now = this.ctx.now();
+      const [hh, mm] = report.send_at.split(':').map(Number);
+      if (now.getHours() * 60 + now.getMinutes() < hh * 60 + mm) {
+        return { attempted: false, sent: false, empty: false, failures: [] };
+      }
+
+      this.bridgeLegacyKey(id, todayIso);
+      if (this.ctx.settings.getRaw(this.sentKey(id)) === todayIso) {
+        return { attempted: false, sent: false, empty: false, failures: [] };
+      }
+    }
+
+    const content = buildReportContent(this.ctx, id);
+    // Raportul de dimineață DDD păstrează comportamentul vechi exact: se trimite mereu,
+    // chiar și „gol” (cu mesajul de rezervă „Nimic urgent astăzi”). Toate celelalte 5
+    // rapoarte, fiind noi, respectă regula generală: fără conținut → nu trimitem nimic.
+    const mustAlwaysSend = id === 'ddd_dimineata';
+    if (content.isEmpty && !mustAlwaysSend) {
+      if (!opts.force) this.markSentToday(id, todayIso);
+      return { attempted: true, sent: false, empty: true, failures: [] };
+    }
+
+    const results: ChannelResult[] = [];
+    if (report.channels.email) results.push(await this.sendEmailChannel(report, content, settings));
+    if (report.channels.whatsapp) results.push(await this.sendWhatsappChannel(settings, content));
+    if (report.channels.notification) results.push(this.sendNotificationChannel(content));
+
+    const anySuccess = results.some((r) => r.ok);
+    // Marcăm ziua ca „trimisă” dacă a reușit măcar un canal; dacă niciunul dintre canalele
+    // ACTIVATE n-a reușit (ex. SMTP jos), reîncercăm la fiecare tick, ca la raportul vechi.
+    // Dacă raportul e activat dar fără niciun canal bifat, marcăm oricum (nimic de reîncercat).
+    if (!opts.force && (results.length === 0 || anySuccess)) {
+      this.markSentToday(id, todayIso);
+    }
+
+    return { attempted: true, sent: anySuccess, empty: false, failures: results.filter((r) => !r.ok) };
   }
 
-  buildBody(today: string): string {
-    const scheduled = this.ctx.followups.listScheduledOn(today, today);
-    const attention = this.ctx.followups.listAttention(today, 100);
-    const overdue = attention.filter((f) => f.days_remaining < 0);
-    const dueToday = attention.filter((f) => f.days_remaining === 0);
-    const next7 = attention.filter((f) => f.days_remaining > 0 && f.days_remaining <= 7);
-    const failed = this.ctx.reminders.countFailed() + this.ctx.messages.countFailed();
+  private async sendEmailChannel(
+    report: DailyReportSettings,
+    content: ReportContent,
+    settings: Settings,
+  ): Promise<ChannelResult> {
+    const active = report.recipients.filter((r) => r.active && r.email);
+    if (active.length === 0) {
+      return { channel: 'email', ok: false, error: 'Niciun destinatar activ pe email' };
+    }
+    if (!settings.smtp.host) {
+      return { channel: 'email', ok: false, error: 'SMTP neconfigurat (Setări → Email)' };
+    }
 
-    const lines: string[] = [];
-    lines.push(`Planul zilei — ${roLongDate(this.ctx.now())}`);
-    lines.push('');
+    const html = renderEmailHtml(textToHtml(content.body), settings.company);
+    let anyOk = false;
+    const errors: string[] = [];
+    for (const r of active) {
+      try {
+        const result = await this.messaging.emailProvider().send({
+          to: r.email,
+          subject: content.subject,
+          body: content.body,
+          html,
+          attachments: [logoAttachment()],
+        });
+        if (result.ok) {
+          anyOk = true;
+          this.ctx.logger.info(`${content.title} trimis pe email către ${r.email}`);
+        } else {
+          errors.push(`${r.email}: ${result.error ?? 'eroare SMTP'}`);
+          this.ctx.logger.error(`${content.title} către ${r.email} a eșuat: ${result.error}`);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${r.email}: ${msg}`);
+        this.ctx.logger.error(`${content.title} către ${r.email} a eșuat`, err);
+      }
+    }
+    return { channel: 'email', ok: anyOk, error: anyOk ? undefined : errors.join('; ') };
+  }
 
-    const fmtRow = (f: FollowupListItem, extra?: string) => {
-      const contact = f.primary_contact_name
-        ? ` · ${f.primary_contact_name}${f.primary_contact_phone ? ` (${f.primary_contact_phone})` : ''}`
-        : '';
-      return `  • ${f.association_name} — ${f.service_name}${extra ?? ''}${contact}`;
+  private async sendWhatsappChannel(settings: Settings, content: ReportContent): Promise<ChannelResult> {
+    const rawPhone = settings.daily_digest.owner_whatsapp_phone.trim();
+    if (!rawPhone) {
+      return { channel: 'whatsapp', ok: false, error: 'Fără număr de WhatsApp propriu configurat' };
+    }
+    if (settings.whatsapp.mode === 'disabled') {
+      return { channel: 'whatsapp', ok: false, error: 'WhatsApp dezactivat (Setări → WhatsApp)' };
+    }
+    const phone = normalizePhoneE164(rawPhone);
+    if (!phone) {
+      return { channel: 'whatsapp', ok: false, error: 'Numărul de WhatsApp propriu nu pare valid' };
+    }
+
+    if (settings.whatsapp.mode === 'assisted') {
+      // Mod asistat: NU deschidem automat fereastra WhatsApp la trimitere (ar fi intruziv
+      // și poate fi ratat) — arătăm o notificare desktop; la click se deschide conversația.
+      const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(content.body)}`;
+      this.notifications.showWithClick(
+        `Tonik · ${content.title} pe WhatsApp`,
+        `${content.summary} Apasă pentru a deschide conversația cu raportul pregătit.`,
+        () => {
+          shell.openExternal(waUrl).catch((err) => {
+            this.ctx.logger.error('Deschiderea conversației WhatsApp a eșuat', err);
+          });
+        },
+      );
+      return { channel: 'whatsapp', ok: true };
+    }
+
+    // Mod „cloud_api”: trimitem automat, ca text liber, către propriul număr.
+    // Nu există un rând `contacts` real pentru „proprietar” — construim unul sintetic,
+    // nepersistat; e sigur pentru că singurul cod care-i citește câmpurile
+    // (fallback-ul pe template la eroarea 131047) se oprește imediat fără mapare de
+    // template, ceea ce e mereu cazul pentru rapoarte (templateUsedId = null).
+    const ownerContact: Contact = {
+      id: 0,
+      association_id: 0,
+      name: 'Proprietar',
+      role: 'Altul',
+      phone,
+      email: null,
+      preferred_channel: 'whatsapp',
+      is_primary: false,
+      allow_whatsapp: true,
+      allow_email: false,
+      allow_sms: false,
+      do_not_contact: false,
+      notes: null,
+      created_at: '',
+      updated_at: '',
     };
-
-    if (scheduled.length > 0) {
-      lines.push(`PROGRAMATE ASTĂZI (${scheduled.length})`);
-      for (const f of scheduled) {
-        lines.push(fmtRow(f, f.scheduled_time ? ` · ora ${f.scheduled_time}` : ''));
-      }
-      lines.push('');
+    const result = await this.messaging.sendWhatsappCloudApiAuto(
+      ownerContact,
+      phone,
+      content.body,
+      null,
+      null,
+    );
+    if (!result.ok) {
+      this.ctx.logger.error(`${content.title} pe WhatsApp a eșuat: ${result.error}`);
     }
+    return { channel: 'whatsapp', ok: result.ok, error: result.error };
+  }
 
-    if (dueToday.length > 0) {
-      lines.push(`AJUNG LA TERMEN ASTĂZI (${dueToday.length}) — de contactat`);
-      for (const f of dueToday) lines.push(fmtRow(f));
-      lines.push('');
-    }
-
-    if (overdue.length > 0) {
-      lines.push(`RESTANTE (${overdue.length}) — de contactat urgent`);
-      for (const f of overdue) {
-        lines.push(fmtRow(f, ` · ${dueContext(f.days_remaining).label}`));
-      }
-      lines.push('');
-    }
-
-    if (next7.length > 0) {
-      lines.push(`URMĂTOARELE 7 ZILE (${next7.length})`);
-      for (const f of next7) {
-        lines.push(fmtRow(f, ` · ${formatRo(f.due_date)} (${dueContext(f.days_remaining).label})`));
-      }
-      lines.push('');
-    }
-
-    if (failed > 0) {
-      lines.push(`⚠ ${pluralRo(failed, 'mesaj eșuat necesită', 'mesaje eșuate necesită')} atenție în aplicație.`);
-      lines.push('');
-    }
-
-    if (scheduled.length === 0 && dueToday.length === 0 && overdue.length === 0 && next7.length === 0) {
-      lines.push('Nimic urgent astăzi — totul este la zi. ✓');
-      lines.push('');
-    }
-
-    lines.push('—');
-    lines.push('Trimis automat de Tonik.');
-    return lines.join('\n');
+  private sendNotificationChannel(content: ReportContent): ChannelResult {
+    this.notifications.show(`Tonik · ${content.title}`, content.summary, content.route);
+    return { channel: 'notification', ok: true };
   }
 }

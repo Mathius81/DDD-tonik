@@ -75,6 +75,55 @@ export const IPC = {
     check: 'license:check',
     activate: 'license:activate',
   },
+  /** Spațiul de lucru Covoare (spălare covoare) — date izolate de DDD. */
+  carpets: {
+    clients: {
+      list: 'carpets:clients:list',
+      get: 'carpets:clients:get',
+      create: 'carpets:clients:create',
+      update: 'carpets:clients:update',
+    },
+    orders: {
+      list: 'carpets:orders:list',
+      get: 'carpets:orders:get',
+      create: 'carpets:orders:create',
+      update: 'carpets:orders:update',
+      setStatus: 'carpets:orders:setStatus',
+    },
+    dashboard: {
+      get: 'carpets:dashboard:get',
+    },
+  },
+  /** Spațiul de lucru Cauciucuri (vulcanizare + hotel de cauciucuri) — date izolate de DDD/Covoare. */
+  tyres: {
+    clients: {
+      list: 'tyres:clients:list',
+      get: 'tyres:clients:get',
+      create: 'tyres:clients:create',
+      update: 'tyres:clients:update',
+    },
+    vehicles: {
+      list: 'tyres:vehicles:list',
+      get: 'tyres:vehicles:get',
+      create: 'tyres:vehicles:create',
+      update: 'tyres:vehicles:update',
+    },
+    storage: {
+      list: 'tyres:storage:list',
+      get: 'tyres:storage:get',
+      create: 'tyres:storage:create',
+      update: 'tyres:storage:update',
+      pickup: 'tyres:storage:pickup',
+      returnToStorage: 'tyres:storage:returnToStorage',
+    },
+    dashboard: {
+      get: 'tyres:dashboard:get',
+    },
+    /** Mesaj WhatsApp asistat: deschide wa.me cu textul pregătit, ca în DDD. */
+    whatsapp: {
+      send: 'tyres:whatsapp:send',
+    },
+  },
   backup: {
     create: 'backup:create',
     list: 'backup:list',

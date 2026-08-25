@@ -1,4 +1,5 @@
 import { dialog } from 'electron';
+import { z } from 'zod';
 import { handle, UserFacingError } from './register';
 import { IPC } from '../../shared/ipc-contract';
 import {
@@ -6,6 +7,7 @@ import {
   setSecretSchema,
   whatsappTemplateMapUpsertSchema,
   whatsappTemplateMapDeleteSchema,
+  reportIds,
 } from '../../shared/schemas/settings';
 import type { AppContext } from '../app-context';
 import type { SecretsService } from '../services/secrets.service';
@@ -35,20 +37,41 @@ export function registerSettingsHandlers(
     return { saved: true };
   });
 
-  // Trimite raportul zilei pe loc, pentru verificare din Setări.
-  handle(IPC.settings.sendDigestNow, null, async () => {
+  // Trimite ACUM un raport anume, pentru verificare din Setări (butonul „Trimite acum, de probă”).
+  const sendDigestNowSchema = z.object({ report: z.enum(reportIds) });
+  handle(IPC.settings.sendDigestNow, sendDigestNowSchema, async ({ report: id }) => {
     const settings = ctx.settings.get();
-    const active = settings.daily_digest.recipients.filter((r) => r.active && r.email);
-    if (active.length === 0) {
-      throw new UserFacingError('Adaugă mai întâi cel puțin un email activ.');
+    const report = settings.daily_digest.reports[id];
+
+    if (!report.channels.email && !report.channels.whatsapp && !report.channels.notification) {
+      throw new UserFacingError('Activează cel puțin un canal de trimitere pentru acest raport.');
     }
-    if (!settings.smtp.host) {
-      throw new UserFacingError('Configurează mai întâi emailul (Setări → Email).');
+    if (report.channels.email) {
+      const active = report.recipients.filter((r) => r.active && r.email);
+      if (active.length === 0) {
+        throw new UserFacingError('Adaugă mai întâi cel puțin un email activ pentru acest raport.');
+      }
+      if (!settings.smtp.host) {
+        throw new UserFacingError('Configurează mai întâi emailul (Setări → Email).');
+      }
     }
-    for (const r of active) {
-      await digest.send(r.email, ctx.todayIso());
+    if (report.channels.whatsapp) {
+      if (!settings.daily_digest.owner_whatsapp_phone.trim()) {
+        throw new UserFacingError('Completează mai întâi numărul tău de WhatsApp (mai jos).');
+      }
+      if (settings.whatsapp.mode === 'disabled') {
+        throw new UserFacingError('WhatsApp e dezactivat (Setări → WhatsApp).');
+      }
     }
-    return { sent: active.length };
+
+    const result = await digest.sendNow(id);
+    if (!result.sent && !result.empty) {
+      const detail = result.failures.map((f) => f.error).filter(Boolean).join('; ');
+      throw new UserFacingError(
+        detail ? `Trimiterea a eșuat: ${detail}` : 'Trimiterea a eșuat pe toate canalele activate.',
+      );
+    }
+    return result;
   });
 
   handle(IPC.settings.testSmtp, null, async () => {

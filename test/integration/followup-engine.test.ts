@@ -131,8 +131,8 @@ describe('migrations', () => {
   it('sunt idempotente — a doua rulare nu aplică nimic', () => {
     const t = createTestDb();
     try {
-      // Versiunea crește cu fiecare migrație nouă (ex.: 002_whatsapp_templates).
-      expect(currentSchemaVersion(t.db)).toBe(2);
+      // Versiunea crește cu fiecare migrație nouă (ex.: 003_covoare).
+      expect(currentSchemaVersion(t.db)).toBe(4);
       expect(runMigrations(t.db)).toEqual([]);
     } finally {
       t.cleanup();

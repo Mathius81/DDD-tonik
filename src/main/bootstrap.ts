@@ -57,7 +57,7 @@ export async function bootstrap(boot: BootstrapContext): Promise<BootstrapResult
   const secrets = new SecretsService(ctx.settings);
   const messaging = new MessagingService(ctx, secrets);
   const notifications = new NotificationService(ctx);
-  const digest = new DailyDigestService(ctx, messaging);
+  const digest = new DailyDigestService(ctx, messaging, notifications);
   const scheduler = new SchedulerService(ctx, notifications, messaging, digest, license);
   const startup = new StartupService(boot.logger);
 

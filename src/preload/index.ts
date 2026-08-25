@@ -79,6 +79,52 @@ const api = {
     check: invoke(IPC.license.check),
     activate: invoke(IPC.license.activate),
   },
+  carpets: {
+    clients: {
+      list: invoke(IPC.carpets.clients.list),
+      get: invoke(IPC.carpets.clients.get),
+      create: invoke(IPC.carpets.clients.create),
+      update: invoke(IPC.carpets.clients.update),
+    },
+    orders: {
+      list: invoke(IPC.carpets.orders.list),
+      get: invoke(IPC.carpets.orders.get),
+      create: invoke(IPC.carpets.orders.create),
+      update: invoke(IPC.carpets.orders.update),
+      setStatus: invoke(IPC.carpets.orders.setStatus),
+    },
+    dashboard: {
+      get: invoke(IPC.carpets.dashboard.get),
+    },
+  },
+  tyres: {
+    clients: {
+      list: invoke(IPC.tyres.clients.list),
+      get: invoke(IPC.tyres.clients.get),
+      create: invoke(IPC.tyres.clients.create),
+      update: invoke(IPC.tyres.clients.update),
+    },
+    vehicles: {
+      list: invoke(IPC.tyres.vehicles.list),
+      get: invoke(IPC.tyres.vehicles.get),
+      create: invoke(IPC.tyres.vehicles.create),
+      update: invoke(IPC.tyres.vehicles.update),
+    },
+    storage: {
+      list: invoke(IPC.tyres.storage.list),
+      get: invoke(IPC.tyres.storage.get),
+      create: invoke(IPC.tyres.storage.create),
+      update: invoke(IPC.tyres.storage.update),
+      pickup: invoke(IPC.tyres.storage.pickup),
+      returnToStorage: invoke(IPC.tyres.storage.returnToStorage),
+    },
+    dashboard: {
+      get: invoke(IPC.tyres.dashboard.get),
+    },
+    whatsapp: {
+      send: invoke(IPC.tyres.whatsapp.send),
+    },
+  },
   backup: {
     create: invoke(IPC.backup.create),
     list: invoke(IPC.backup.list),

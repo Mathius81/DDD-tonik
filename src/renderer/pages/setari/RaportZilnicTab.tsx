@@ -1,25 +1,39 @@
 import { useState } from 'react';
-import {
-  Button,
-  Stack,
-  Group,
-  Switch,
-  TextInput,
-  Text,
-  Alert,
-  Anchor,
-  ActionIcon,
-  Table,
-} from '@mantine/core';
-import { IconSunrise, IconSend, IconPlus, IconTrash } from '@tabler/icons-react';
+import { Stack, Group, Button, TextInput, Alert, Anchor } from '@mantine/core';
+import { IconSunrise } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { ddd } from '../../api/ddd';
 import { runMutation } from '../../api/useIpc';
 import { SectionCard } from '../../components/SectionCard';
-import { StatusBadge } from '../../components/StatusBadge';
-import type { Settings, DigestRecipient } from '../../../shared/schemas/settings';
+import { DailyReportCard } from './DailyReportCard';
+import {
+  reportWorkspaces,
+  reportPeriods,
+  type Settings,
+  type DailyReports,
+  type DailyReportSettings,
+  type ReportId,
+} from '../../../shared/schemas/settings';
 
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const WORKSPACE_LABELS: Record<(typeof reportWorkspaces)[number], string> = {
+  ddd: 'DDD',
+  covoare: 'Covoare',
+  cauciucuri: 'Cauciucuri',
+};
+
+const PERIOD_LABELS: Record<(typeof reportPeriods)[number], string> = {
+  dimineata: 'Dimineața',
+  seara: 'Seara',
+};
+
+const REPORT_DESCRIPTIONS: Record<ReportId, string> = {
+  ddd_dimineata: 'Planul zilei de azi: programări, scadențe, restanțe.',
+  ddd_seara: 'Pregătire pentru mâine: ce e programat și ce ajunge la termen.',
+  covoare_dimineata: 'Comenzi în lucru, gata de livrat și preluate astăzi.',
+  covoare_seara: 'Comenzi cu termen mâine și cele încă în așteptare de livrare.',
+  cauciucuri_dimineata: 'Seturile mai vechi aflate în depozit — candidați pentru reminder.',
+  cauciucuri_seara: 'Recapitulare a seturilor intrate astăzi în depozit.',
+};
 
 export function RaportZilnicTab({
   settings,
@@ -30,36 +44,27 @@ export function RaportZilnicTab({
   onSaved: () => void;
   goToEmail: () => void;
 }) {
-  const [enabled, setEnabled] = useState(settings.daily_digest.enabled);
-  const [recipients, setRecipients] = useState<DigestRecipient[]>(
-    settings.daily_digest.recipients,
-  );
-  const [newEmail, setNewEmail] = useState('');
-  const [sendAt, setSendAt] = useState(settings.daily_digest.send_at);
-  const [sending, setSending] = useState(false);
+  const [reports, setReports] = useState<DailyReports>(settings.daily_digest.reports);
+  const [ownerPhone, setOwnerPhone] = useState(settings.daily_digest.owner_whatsapp_phone);
+  const [sendingId, setSendingId] = useState<ReportId | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const smtpConfigured = !!settings.smtp.host;
-  const activeCount = recipients.filter((r) => r.active).length;
+  const ownerPhoneConfigured = !!ownerPhone.trim();
 
-  const addRecipient = () => {
-    const email = newEmail.trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) {
-      notifications.show({ color: 'red', message: 'Adresa de email nu pare validă.' });
-      return;
-    }
-    if (recipients.some((r) => r.email.toLowerCase() === email)) {
-      notifications.show({ color: 'red', message: 'Adresa există deja în listă.' });
-      return;
-    }
-    setRecipients((rs) => [...rs, { email, active: true }]);
-    setNewEmail('');
+  const patchReport = (id: ReportId, patch: Partial<DailyReportSettings>) => {
+    setReports((rs) => ({ ...rs, [id]: { ...rs[id], ...patch } }));
   };
 
   const save = async (): Promise<boolean> => {
     const saved = await runMutation(
       ddd.settings.update({
         ...settings,
-        daily_digest: { enabled, email: '', recipients, send_at: sendAt || '08:00' },
+        daily_digest: {
+          ...settings.daily_digest,
+          owner_whatsapp_phone: ownerPhone.trim(),
+          reports,
+        },
       }),
       'Salvat.',
     );
@@ -67,154 +72,93 @@ export function RaportZilnicTab({
     return !!saved;
   };
 
-  const sendNow = async () => {
-    setSending(true);
+  const sendNow = async (id: ReportId) => {
+    setSendingId(id);
     const ok = await save();
     if (!ok) {
-      setSending(false);
+      setSendingId(null);
       return;
     }
-    await runMutation(
-      ddd.settings.sendDigestNow(),
-      'Raportul a fost trimis către destinatarii activi. Verifică inbox-ul.',
+    const result = await runMutation<{ sent: boolean; empty: boolean }>(
+      ddd.settings.sendDigestNow({ report: id }),
     );
-    setSending(false);
+    if (result) {
+      if (result.empty) {
+        notifications.show({
+          color: 'blue',
+          message: 'Nu era nimic de raportat acum — nu s-a trimis nimic (comportament normal).',
+        });
+      } else if (result.sent) {
+        notifications.show({ color: 'teal', message: 'Raportul a fost trimis pe canalele activate.' });
+      }
+    }
+    setSendingId(null);
+  };
+
+  const saveAll = async () => {
+    setSaving(true);
+    await save();
+    setSaving(false);
   };
 
   return (
-    <SectionCard
-      maw={640}
-      title="Raport zilnic"
-      description="În fiecare dimineață, destinatarii activi primesc pe email planul zilei: programările, scadențele de azi, restanțele și ce urmează în 7 zile."
-      icon={<IconSunrise size={21} stroke={1.7} />}
-      titleRight={
-        enabled && activeCount > 0 ? (
-          <StatusBadge tone="success">
-            {activeCount === 1 ? '1 destinatar activ' : `${activeCount} destinatari activi`}
-          </StatusBadge>
-        ) : (
-          <StatusBadge tone="neutral">Oprit</StatusBadge>
-        )
-      }
-    >
-      <Stack gap="var(--sp-4)">
-        {!smtpConfigured && (
-          <Alert color="yellow" variant="light">
-            Raportul se trimite prin serverul de email al firmei.{' '}
-            <Anchor size="var(--fs-body)" onClick={goToEmail}>
-              Configurează mai întâi emailul
-            </Anchor>
-            .
-          </Alert>
-        )}
-
-        <Group align="flex-end">
-          <Switch
-            label="Trimite raportul zilnic"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.currentTarget.checked)}
-            style={{ flex: 1 }}
-          />
-          <TextInput
-            label="Ora trimiterii"
-            placeholder="08:00"
-            value={sendAt}
-            onChange={(e) => setSendAt(e.currentTarget.value)}
-            w={110}
-          />
-        </Group>
-
-        <div>
-          <Text size="var(--fs-small)" fw={550} mb={6}>
-            Destinatari
-          </Text>
-          {recipients.length === 0 ? (
-            <Text size="var(--fs-small)" c="var(--text-faint)" mb="var(--sp-2)">
-              Niciun destinatar încă — adaugă primul email mai jos.
-            </Text>
-          ) : (
-            <Table verticalSpacing={4}>
-              <Table.Tbody>
-                {recipients.map((r, i) => (
-                  <Table.Tr key={r.email}>
-                    <Table.Td>
-                      <Text
-                        size="var(--fs-body)"
-                        c={r.active ? undefined : 'var(--text-faint)'}
-                        td={r.active ? undefined : 'line-through'}
-                      >
-                        {r.email}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td w={110}>
-                      {r.active ? (
-                        <StatusBadge tone="success">Activ</StatusBadge>
-                      ) : (
-                        <StatusBadge tone="neutral">Oprit</StatusBadge>
-                      )}
-                    </Table.Td>
-                    <Table.Td w={90} align="right">
-                      <Group gap={4} justify="flex-end" wrap="nowrap">
-                        <Switch
-                          size="xs"
-                          checked={r.active}
-                          onChange={(e) => {
-                            const active = e.currentTarget.checked;
-                            setRecipients((rs) =>
-                              rs.map((x, j) => (j === i ? { ...x, active } : x)),
-                            );
-                          }}
-                          aria-label={r.active ? 'Oprește trimiterea' : 'Pornește trimiterea'}
-                        />
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          size="sm"
-                          onClick={() => setRecipients((rs) => rs.filter((_, j) => j !== i))}
-                          aria-label="Șterge destinatarul"
-                        >
-                          <IconTrash size={14} />
-                        </ActionIcon>
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+    <Stack gap="var(--sp-4)">
+      <SectionCard
+        maw={900}
+        title="Rapoarte zilnice"
+        description="Fiecare spațiu de lucru are propriile rapoarte, complet independente: unul dimineața (ce e de făcut azi) și unul seara (pregătire pentru mâine). Alege ora, canalele și destinatarii pentru fiecare, separat."
+        icon={<IconSunrise size={21} stroke={1.7} />}
+      >
+        <Stack gap="var(--sp-4)">
+          {!smtpConfigured && (
+            <Alert color="yellow" variant="light">
+              Rapoartele pe email folosesc serverul de email al firmei.{' '}
+              <Anchor size="var(--fs-body)" onClick={goToEmail}>
+                Configurează mai întâi emailul
+              </Anchor>
+              .
+            </Alert>
           )}
+          <TextInput
+            label="Numărul tău de WhatsApp"
+            description="Folosit de toate rapoartele cu canalul WhatsApp activat — raportul se trimite la ACEST număr, nu la un client."
+            placeholder="ex.: 07xxxxxxxx"
+            value={ownerPhone}
+            onChange={(e) => setOwnerPhone(e.currentTarget.value)}
+            maw={280}
+          />
+        </Stack>
+      </SectionCard>
 
-          <Group gap="var(--sp-2)" mt="var(--sp-2)">
-            <TextInput
-              placeholder="ex.: marius@exemplu.ro"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.currentTarget.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addRecipient())}
-              style={{ flex: 1, maxWidth: 320 }}
-            />
-            <Button variant="default" leftSection={<IconPlus size={15} />} onClick={addRecipient}>
-              Adaugă
-            </Button>
+      {reportWorkspaces.map((workspace) => (
+        <SectionCard key={workspace} maw={900} title={WORKSPACE_LABELS[workspace]}>
+          <Group align="stretch" gap="var(--sp-4)" wrap="wrap">
+            {reportPeriods.map((period) => {
+              const id = `${workspace}_${period}` as ReportId;
+              return (
+                <DailyReportCard
+                  key={id}
+                  label={PERIOD_LABELS[period]}
+                  description={REPORT_DESCRIPTIONS[id]}
+                  report={reports[id]}
+                  onChange={(patch) => patchReport(id, patch)}
+                  whatsappMode={settings.whatsapp.mode}
+                  ownerPhoneConfigured={ownerPhoneConfigured}
+                  smtpConfigured={smtpConfigured}
+                  onSendNow={() => sendNow(id)}
+                  sending={sendingId === id}
+                />
+              );
+            })}
           </Group>
-        </div>
+        </SectionCard>
+      ))}
 
-        <Text size="var(--fs-small)" c="var(--text-muted)">
-          Raportul pleacă doar către destinatarii activi. Dacă PC-ul e oprit la ora setată,
-          se trimite la prima pornire din acea zi.
-        </Text>
-
-        <Group justify="space-between">
-          <Button
-            variant="default"
-            leftSection={<IconSend size={16} />}
-            loading={sending}
-            disabled={!smtpConfigured || activeCount === 0}
-            onClick={sendNow}
-          >
-            Trimite acum, de probă
-          </Button>
-          <Button onClick={save}>Salvează</Button>
-        </Group>
-      </Stack>
-    </SectionCard>
+      <Group justify="flex-end">
+        <Button loading={saving} onClick={saveAll}>
+          Salvează
+        </Button>
+      </Group>
+    </Stack>
   );
 }

@@ -56,15 +56,82 @@ export const digestRecipientSchema = z.object({
   active: z.boolean().default(true),
 });
 
-/** Raportul zilnic „planul zilei” trimis pe email (spec utilizator). */
-export const dailyDigestSettingsSchema = z.object({
+const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+/** Spațiile de lucru care au propriul raport zilnic. */
+export const reportWorkspaces = ['ddd', 'covoare', 'cauciucuri'] as const;
+export type ReportWorkspace = (typeof reportWorkspaces)[number];
+
+/** Momentul zilei: dimineața (planul zilei de azi) sau seara (pregătire pentru mâine). */
+export const reportPeriods = ['dimineata', 'seara'] as const;
+export type ReportPeriod = (typeof reportPeriods)[number];
+
+/** Cele 6 rapoarte independente: câte unul pentru fiecare (spațiu, moment). */
+export const reportIds = reportWorkspaces.flatMap((w) =>
+  reportPeriods.map((p) => `${w}_${p}` as const),
+);
+export type ReportId = (typeof reportIds)[number];
+
+/** Canalele prin care poate fi trimis un raport; fiecare raport le poate combina liber. */
+export const dailyReportChannelsSchema = z.object({
+  email: z.boolean().default(true),
+  whatsapp: z.boolean().default(false),
+  /** Notificare desktop, cu click pentru navigare/deschidere conversație. */
+  notification: z.boolean().default(false),
+});
+export type DailyReportChannels = z.infer<typeof dailyReportChannelsSchema>;
+
+/** Configurația unui singur raport (ex.: „covoare_seara”): oră proprie, canale proprii. */
+export const dailyReportSettingsSchema = z.object({
   enabled: z.boolean().default(false),
-  /** Destinatarii; raportul pleacă doar către cei activi. */
+  send_at: timeOfDaySchema.default('08:00'),
+  channels: dailyReportChannelsSchema.default(dailyReportChannelsSchema.parse({})),
+  /** Destinatarii pe email; raportul pleacă doar către cei activi. */
   recipients: z.array(digestRecipientSchema).max(20).default([]),
-  /** Câmp vechi (un singur email) — migrat automat în `recipients` la citire. */
+});
+export type DailyReportSettings = z.infer<typeof dailyReportSettingsSchema>;
+
+function defaultReportSettings(sendAt: string): DailyReportSettings {
+  return dailyReportSettingsSchema.parse({ send_at: sendAt });
+}
+
+/** Cele 6 rapoarte, cu ore implicite diferite pentru dimineață/seară. */
+const dailyReportsShape = z.object({
+  ddd_dimineata: dailyReportSettingsSchema.default(defaultReportSettings('08:00')),
+  ddd_seara: dailyReportSettingsSchema.default(defaultReportSettings('18:00')),
+  covoare_dimineata: dailyReportSettingsSchema.default(defaultReportSettings('08:00')),
+  covoare_seara: dailyReportSettingsSchema.default(defaultReportSettings('18:00')),
+  cauciucuri_dimineata: dailyReportSettingsSchema.default(defaultReportSettings('08:00')),
+  cauciucuri_seara: dailyReportSettingsSchema.default(defaultReportSettings('18:00')),
+});
+export const dailyReportsSchema = dailyReportsShape.default(dailyReportsShape.parse({}));
+export type DailyReports = z.infer<typeof dailyReportsSchema>;
+
+/**
+ * Raportul zilnic „planul zilei”. Câmpurile `enabled`/`recipients`/`email`/`send_at` de mai
+ * jos sunt cele VECHI (un singur raport, doar email, doar dimineața) — rămân în schemă doar
+ * pentru compatibilitate; la citire sunt migrate automat în `reports.ddd_dimineata`
+ * (vezi `settings.repo.ts`) și nu mai sunt folosite direct de trimitere.
+ */
+export const dailyDigestSettingsSchema = z.object({
+  /** @deprecated migrat în `reports.ddd_dimineata.enabled` */
+  enabled: z.boolean().default(false),
+  /** @deprecated migrat în `reports.ddd_dimineata.recipients` */
+  recipients: z.array(digestRecipientSchema).max(20).default([]),
+  /** @deprecated câmp vechi (un singur email) — migrat automat în `recipients` la citire. */
   email: z.string().trim().max(200).default(''),
-  /** Ora locală 'HH:mm' la care se trimite. */
-  send_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('08:00'),
+  /** @deprecated migrat în `reports.ddd_dimineata.send_at` */
+  send_at: timeOfDaySchema.default('08:00'),
+  /**
+   * Flag intern (nu se afișează în UI): devine `true` prima dată când setările vechi de mai
+   * sus au fost copiate în `reports.ddd_dimineata`, pentru ca migrarea să ruleze o singură
+   * dată și să nu suprascrie editările ulterioare ale utilizatorului.
+   */
+  legacy_migrated: z.boolean().default(false),
+  /** Numărul de WhatsApp al proprietarului, folosit de toate rapoartele cu canalul WhatsApp activ. */
+  owner_whatsapp_phone: z.string().trim().max(30).default(''),
+  /** Cele 6 rapoarte independente (spațiu × moment al zilei). */
+  reports: dailyReportsSchema,
 });
 
 export const settingsSchema = z.object({

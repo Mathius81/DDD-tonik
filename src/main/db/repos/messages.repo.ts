@@ -50,8 +50,11 @@ export class MessageRepository {
   }
 
   createTemplate(data: MessageTemplateCreate): MessageTemplate {
+    // Șablonul nou se creează INACTIV, explicit — coloana are DEFAULT 1 în schemă,
+    // iar un șablon nou devenit automat activ ar schimba tăcut textul reminderelor
+    // trimise clienților reali. Activarea rămâne o acțiune deliberată din Setări.
     const result = this.db.run(
-      'INSERT INTO message_templates (name, channel, subject, body) VALUES (?, ?, ?, ?)',
+      'INSERT INTO message_templates (name, channel, subject, body, active) VALUES (?, ?, ?, ?, 0)',
       data.name,
       data.channel,
       data.subject,

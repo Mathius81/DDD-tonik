@@ -1,4 +1,4 @@
-import { addMonths, differenceInCalendarDays, format, parse, isValid } from 'date-fns';
+import { addMonths, addDays, differenceInCalendarDays, format, parse, isValid } from 'date-fns';
 import { toIsoDate } from './schemas/common';
 
 /**
@@ -9,6 +9,11 @@ import { toIsoDate } from './schemas/common';
 export function addMonthsClamped(isoDate: string, months: number): string {
   const d = parseIso(isoDate);
   return toIsoDate(addMonths(d, months));
+}
+
+/** Adaugă (sau scade, dacă `days` e negativ) zile calendaristice la o dată ISO. */
+export function addDaysIso(isoDate: string, days: number): string {
+  return toIsoDate(addDays(parseIso(isoDate), days));
 }
 
 export function parseIso(isoDate: string): Date {

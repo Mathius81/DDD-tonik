@@ -11,7 +11,14 @@ import { MesajePage } from './pages/mesaje/MesajePage';
 import { SetariPage } from './pages/setari/SetariPage';
 import { LicenseGate } from './components/LicenseGate';
 import { CovoarePlaceholder } from './pages/covoare/CovoarePlaceholder';
+import { CovoareDashboardPage } from './pages/covoare/CovoareDashboardPage';
+import { ClientiPage } from './pages/covoare/ClientiPage';
+import { ComenziPage } from './pages/covoare/ComenziPage';
 import { CauciucuriPlaceholder } from './pages/cauciucuri/CauciucuriPlaceholder';
+import { CauciucuriDashboardPage } from './pages/cauciucuri/CauciucuriDashboardPage';
+import { ClientiPage as CauciucuriClientiPage } from './pages/cauciucuri/ClientiPage';
+import { MasiniPage } from './pages/cauciucuri/MasiniPage';
+import { DepozitPage } from './pages/cauciucuri/DepozitPage';
 import { WORKSPACES, getInitialRoute } from './workspace';
 
 /** La pornire (sau la navigare spre „/”) deschidem ultimul spațiu folosit. */
@@ -25,16 +32,22 @@ function LegacyAsociatieRedirect() {
   return <Navigate to={`/ddd/asociatii/${id}`} replace />;
 }
 
-/** Rutele-placeholder ale unui spațiu nou, generate din meniul lui (workspace.tsx). */
+/**
+ * Rutele-placeholder ale unui spațiu nou, generate din meniul lui (workspace.tsx).
+ * `excludePaths` omite intrările deja înlocuite cu pagini reale (ex.: Covoare → Clienți/Comenzi).
+ */
 function placeholderChildren(
   workspaceId: 'covoare' | 'cauciucuri',
   Placeholder: ComponentType<{ title: string }>,
+  excludePaths: string[] = [],
 ): RouteObject[] {
-  return WORKSPACES[workspaceId].navItems.map((item) =>
-    item.path
-      ? { path: item.path, element: <Placeholder title={item.label} /> }
-      : { index: true, element: <Placeholder title={item.label} /> },
-  );
+  return WORKSPACES[workspaceId].navItems
+    .filter((item) => !excludePaths.includes(item.path))
+    .map((item) =>
+      item.path
+        ? { path: item.path, element: <Placeholder title={item.label} /> }
+        : { index: true, element: <Placeholder title={item.label} /> },
+    );
 }
 
 const router = createHashRouter([
@@ -56,12 +69,23 @@ const router = createHashRouter([
   {
     path: '/covoare',
     element: <AppShellLayout />,
-    children: placeholderChildren('covoare', CovoarePlaceholder),
+    children: [
+      { index: true, element: <CovoareDashboardPage /> },
+      { path: 'clienti', element: <ClientiPage /> },
+      { path: 'comenzi', element: <ComenziPage /> },
+      ...placeholderChildren('covoare', CovoarePlaceholder, ['', 'clienti', 'comenzi']),
+    ],
   },
   {
     path: '/cauciucuri',
     element: <AppShellLayout />,
-    children: placeholderChildren('cauciucuri', CauciucuriPlaceholder),
+    children: [
+      { index: true, element: <CauciucuriDashboardPage /> },
+      { path: 'clienti', element: <CauciucuriClientiPage /> },
+      { path: 'masini', element: <MasiniPage /> },
+      { path: 'depozit', element: <DepozitPage /> },
+      ...placeholderChildren('cauciucuri', CauciucuriPlaceholder, ['', 'clienti', 'masini', 'depozit']),
+    ],
   },
   // Rute vechi fără prefix de spațiu — main trimite astfel de căi din notificări
   // (events:navigate) și din meniul OS; le redirectăm la echivalentul din /ddd.

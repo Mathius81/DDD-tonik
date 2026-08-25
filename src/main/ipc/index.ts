@@ -18,6 +18,8 @@ import { registerReminderHandlers } from './reminders.ipc';
 import { registerSettingsHandlers } from './settings.ipc';
 import { registerBackupHandlers } from './backup.ipc';
 import { registerLicenseHandlers } from './license.ipc';
+import { registerCarpetHandlers } from './carpets.ipc';
+import { registerTyreHandlers } from './tyres.ipc';
 
 export interface IpcDependencies {
   messaging: MessagingService;
@@ -42,4 +44,6 @@ export function registerAllIpcHandlers(ctx: AppContext, deps: IpcDependencies): 
   registerSettingsHandlers(ctx, deps.secrets, deps.messaging, deps.startup, deps.digest);
   registerBackupHandlers(ctx, deps.backups, deps.reopenDb);
   registerLicenseHandlers(ctx, deps.license);
+  registerCarpetHandlers(ctx);
+  registerTyreHandlers(ctx);
 }
