@@ -5,6 +5,7 @@ import type { DailyDigestService } from './daily-digest.service';
 import type { LicenseService } from './license.service';
 import { formatRo } from '../../shared/dates';
 import { renderEmailHtml, textToHtml, logoAttachment } from './messaging/email-template';
+import { normalizePhoneE164 } from './messaging/template-render';
 import type { Reminder } from '../../shared/schemas/reminder';
 
 const TICK_INTERVAL_MS = 10 * 60 * 1000; // 10 minute (spec #19)
@@ -16,6 +17,8 @@ const MAX_AUTO_ATTEMPTS = 3; // limita de retry automat (spec #42)
  */
 export class SchedulerService {
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** Gardă de reintrare: un tick nou iese imediat dacă unul e deja în curs (spec #3). */
+  private ticking = false;
 
   constructor(
     private ctx: AppContext,
@@ -26,6 +29,15 @@ export class SchedulerService {
   ) {}
 
   start(): void {
+    // Recuperăm reminderele rămase blocate pe 'processing' dintr-o cădere anterioară
+    // a aplicației, înainte de primul tick (spec #4).
+    const recovered = this.ctx.reminders.sweepStuckProcessing();
+    if (recovered > 0) {
+      this.ctx.logger.warn(
+        `Scheduler: ${recovered} remindere rămase blocate pe 'processing' au fost marcate 'failed'.`,
+      );
+    }
+
     // La pornire: procesăm tot ce e restant, cu digest pentru cele overdue.
     this.tick(true).catch((err) => this.ctx.logger.error('Scheduler: eroare la pornire', err));
     this.timer = setInterval(() => {
@@ -39,36 +51,48 @@ export class SchedulerService {
   }
 
   async tick(isStartup: boolean): Promise<void> {
-    // Fără licență validă nu se trimite nimic automat.
-    if (this.license && this.license.check().status !== 'valid') return;
-
-    // Raportul zilnic „planul zilei” — își verifică singur ora și ziua.
-    await this.digest?.tick();
-
-    const now = this.ctx.nowLocalIso();
-    const today = this.ctx.todayIso();
-    const due = this.ctx.reminders.listDue(now);
-    if (due.length === 0) return;
-
-    this.ctx.logger.info(`Scheduler: ${due.length} remindere de procesat`);
-
-    // Reminderele mai vechi decât azi sunt „restante” — la pornire le anunțăm
-    // printr-un singur digest, nu printr-o avalanșă de notificări.
-    const overdue = due.filter((r) => r.scheduled_at.slice(0, 10) < today);
-    const current = due.filter((r) => r.scheduled_at.slice(0, 10) >= today);
-
-    if (isStartup && overdue.length > 0) {
-      this.notifications.show(
-        'DDD Manager',
-        `${overdue.length} ${overdue.length === 1 ? 'reminder restant' : 'remindere restante'} din perioada în care aplicația a fost închisă.`,
-        '/remindere',
-      );
+    // Gardă de reintrare: setInterval (10 min) + apelul de la pornire se pot suprapune
+    // dacă un tick anterior încă așteaptă requesturi de rețea — fără gardă, tick-urile
+    // paralele ar putea trimite același reminder de două ori (spec #3).
+    if (this.ticking) {
+      this.ctx.logger.warn('Scheduler: tick anterior încă rulează, sar peste acest tick.');
+      return;
     }
+    this.ticking = true;
+    try {
+      // Fără licență validă nu se trimite nimic automat.
+      if (this.license && this.license.check().status !== 'valid') return;
 
-    for (const reminder of [...overdue, ...current]) {
-      await this.processReminder(reminder, isStartup && overdue.includes(reminder));
+      // Raportul zilnic „planul zilei” — își verifică singur ora și ziua.
+      await this.digest?.tick();
+
+      const now = this.ctx.nowLocalIso();
+      const today = this.ctx.todayIso();
+      const due = this.ctx.reminders.listDue(now);
+      if (due.length === 0) return;
+
+      this.ctx.logger.info(`Scheduler: ${due.length} remindere de procesat`);
+
+      // Reminderele mai vechi decât azi sunt „restante” — la pornire le anunțăm
+      // printr-un singur digest, nu printr-o avalanșă de notificări.
+      const overdue = due.filter((r) => r.scheduled_at.slice(0, 10) < today);
+      const current = due.filter((r) => r.scheduled_at.slice(0, 10) >= today);
+
+      if (isStartup && overdue.length > 0) {
+        this.notifications.show(
+          'DDD Manager',
+          `${overdue.length} ${overdue.length === 1 ? 'reminder restant' : 'remindere restante'} din perioada în care aplicația a fost închisă.`,
+          '/remindere',
+        );
+      }
+
+      for (const reminder of [...overdue, ...current]) {
+        await this.processReminder(reminder, isStartup && overdue.includes(reminder));
+      }
+      this.ctx.notifyDataChanged();
+    } finally {
+      this.ticking = false;
     }
-    this.ctx.notifyDataChanged();
   }
 
   private async processReminder(reminder: Reminder, silent: boolean): Promise<void> {
@@ -86,7 +110,9 @@ export class SchedulerService {
     const service = this.ctx.services.getById(followup.service_id);
     const contact = this.ctx.contacts.getPrimaryForAssociation(association.id);
 
-    this.ctx.reminders.setStatus(reminder.id, 'processing');
+    // Claim atomic: dacă rândul nu mai e 'pending' (deja reclamat de un alt tick
+    // suprapus), sărim peste el — previne dubla trimitere (spec #3).
+    if (!this.ctx.reminders.claimForProcessing(reminder.id)) return;
     this.ctx.reminders.recordAttempt(reminder.id);
 
     try {
@@ -103,8 +129,59 @@ export class SchedulerService {
           break;
 
         case 'whatsapp': {
-          // WhatsApp automat doar în modul Cloud API; în modul asistat reminderul
-          // devine notificare internă care cere acțiunea utilizatorului.
+          // WhatsApp automat doar în modul Cloud API, cu contact eligibil (permite
+          // WhatsApp, are telefon, nu e „Nu contacta”); altfel comportamentul de azi —
+          // reminderul devine notificare internă care cere acțiunea utilizatorului.
+          const whatsappMode = this.ctx.settings.get().whatsapp.mode;
+          const canAutoSend =
+            whatsappMode === 'cloud_api' &&
+            !!contact &&
+            !contact.do_not_contact &&
+            contact.allow_whatsapp &&
+            !!contact.phone;
+
+          if (canAutoSend) {
+            const phone = normalizePhoneE164(contact!.phone!);
+            if (!phone) {
+              this.failOrRetry(
+                reminder,
+                `Numărul de telefon al contactului „${contact!.name}” nu pare valid.`,
+              );
+              break;
+            }
+            const { body, templateUsedId } = this.messaging.buildMessage(
+              contact!.id,
+              followup.id,
+              'whatsapp',
+            );
+            const result = await this.messaging.sendWhatsappCloudApiAuto(
+              contact!,
+              phone,
+              body,
+              followup.id,
+              templateUsedId,
+            );
+            this.ctx.messages.insertLog({
+              association_id: association.id,
+              contact_id: contact!.id,
+              followup_id: followup.id,
+              reminder_id: reminder.id,
+              channel: 'whatsapp',
+              recipient: contact!.phone!,
+              template_id: templateUsedId,
+              message_preview: body.slice(0, 500),
+              status: result.ok ? 'accepted_by_provider' : 'failed',
+              provider_message_id: result.wamid ?? null,
+              error_message: result.error ?? null,
+            });
+            if (result.ok) {
+              this.ctx.reminders.setStatus(reminder.id, 'sent');
+            } else {
+              this.failOrRetry(reminder, result.error ?? 'Trimitere WhatsApp eșuată');
+            }
+            break;
+          }
+
           if (contact?.do_not_contact) {
             // Regula do_not_contact (spec #43): doar notificare internă.
             if (!silent) {

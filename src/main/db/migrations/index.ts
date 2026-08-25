@@ -1,5 +1,6 @@
 import type { Db } from '../database';
 import { migration001 } from './001_initial';
+import { migration002 } from './002_whatsapp_templates';
 
 export interface Migration {
   version: number;
@@ -7,7 +8,7 @@ export interface Migration {
   up: (db: Db) => void;
 }
 
-export const migrations: Migration[] = [migration001];
+export const migrations: Migration[] = [migration001, migration002];
 
 /**
  * Rulează migrațiile lipsă, fiecare în propria tranzacție.

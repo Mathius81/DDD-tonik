@@ -1,7 +1,12 @@
 import { dialog } from 'electron';
 import { handle, UserFacingError } from './register';
 import { IPC } from '../../shared/ipc-contract';
-import { settingsSchema, setSecretSchema } from '../../shared/schemas/settings';
+import {
+  settingsSchema,
+  setSecretSchema,
+  whatsappTemplateMapUpsertSchema,
+  whatsappTemplateMapDeleteSchema,
+} from '../../shared/schemas/settings';
 import type { AppContext } from '../app-context';
 import type { SecretsService } from '../services/secrets.service';
 import type { MessagingService } from '../services/messaging/messaging.service';
@@ -56,6 +61,33 @@ export function registerSettingsHandlers(
         'Conexiunea SMTP a eșuat. Verifică serverul, portul, utilizatorul și parola.',
       );
     }
+  });
+
+  // Verifică token + Phone Number ID pentru WhatsApp Business Cloud API (spec „mod automat").
+  handle(IPC.settings.testWhatsapp, null, async () => {
+    const result = await messaging.whatsappProvider().verify();
+    if (!result.ok) {
+      throw new UserFacingError(
+        result.error ?? 'Conexiunea cu WhatsApp Business Cloud API a eșuat.',
+      );
+    }
+    return {
+      ok: true,
+      displayPhoneNumber: result.displayPhoneNumber ?? null,
+      verifiedName: result.verifiedName ?? null,
+    };
+  });
+
+  // Mapare template local WhatsApp → template aprobat de Meta (fallback după 24h).
+  handle(IPC.settings.whatsappTemplateMap.list, null, () => ctx.messages.listWhatsappTemplateMaps());
+
+  handle(IPC.settings.whatsappTemplateMap.upsert, whatsappTemplateMapUpsertSchema, (data) =>
+    ctx.messages.upsertWhatsappTemplateMap(data),
+  );
+
+  handle(IPC.settings.whatsappTemplateMap.delete, whatsappTemplateMapDeleteSchema, ({ id }) => {
+    ctx.messages.deleteWhatsappTemplateMap(id);
+    return { deleted: true };
   });
 
   // Folderul de backup se alege printr-un dialog nativ; renderer-ul nu trimite

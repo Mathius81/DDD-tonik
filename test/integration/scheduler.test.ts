@@ -98,6 +98,76 @@ describe('SchedulerService — remindere scadente și restante', () => {
     expect(showSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('gardă de reintrare: tick-uri suprapuse nu procesează dublu (spec #3)', async () => {
+    intervention('2026-08-13', '2026-08-13');
+    const { scheduler, showSpy } = setup('2026-10-14T10:00:00');
+
+    // Pornim al doilea tick înainte ca primul să se termine — fără gardă, ambele
+    // ar vedea reminderul încă 'pending' și l-ar procesa de două ori.
+    const p1 = scheduler.tick(false);
+    const p2 = scheduler.tick(false);
+    await Promise.all([p1, p2]);
+
+    const r30 = db.get<{ status: string }>(`SELECT status FROM reminders WHERE offset_days = 30`);
+    expect(r30!.status).toBe('sent');
+    expect(showSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('claimForProcessing reclamă un reminder pending o singură dată (spec #3)', () => {
+    intervention('2026-08-13', '2026-08-13');
+    const row = db.get<{ id: number }>(`SELECT id FROM reminders WHERE offset_days = 30`);
+    const { ctx } = setup('2026-10-14T10:00:00');
+
+    expect(ctx.reminders.claimForProcessing(row!.id)).toBe(true);
+    const claimed = db.get<{ status: string }>(`SELECT status FROM reminders WHERE id = ?`, row!.id);
+    expect(claimed!.status).toBe('processing');
+
+    // Un al doilea claim pe același rând eșuează — nu mai e 'pending'.
+    expect(ctx.reminders.claimForProcessing(row!.id)).toBe(false);
+  });
+
+  it('la pornire: reminderele blocate pe processing dintr-o cădere anterioară devin failed (spec #4)', () => {
+    intervention('2026-08-13', '2026-08-13');
+    const row = db.get<{ id: number }>(`SELECT id FROM reminders WHERE offset_days = 30`);
+    db.run(`UPDATE reminders SET status = 'processing' WHERE id = ?`, row!.id);
+
+    // 'now' devreme, ca niciun reminder să nu fie și scadent — izolăm sweep-ul de tick.
+    const { scheduler } = setup('2026-08-13T10:00:00');
+    scheduler.start();
+    scheduler.stop();
+
+    const swept = db.get<{ status: string; error_message: string | null }>(
+      `SELECT status, error_message FROM reminders WHERE id = ?`,
+      row!.id,
+    );
+    expect(swept!.status).toBe('failed');
+    expect(swept!.error_message).toContain('Întrerupt de închiderea aplicației');
+  });
+
+  it('WhatsApp automat fără token/Phone Number ID configurate: NU marchează sent, ajunge failed după 3 încercări (spec #1)', async () => {
+    intervention('2026-08-13', '2026-08-13');
+    const { ctx, scheduler } = setup('2026-10-14T10:00:00');
+    // Modul „Automat” e activ, dar fără token/phone_number_id salvate — exact
+    // scenariul de DRY-RUN tăcut din review; acum trebuie tratat ca eșec real.
+    const settings = ctx.settings.get();
+    ctx.settings.save({ ...settings, whatsapp: { ...settings.whatsapp, mode: 'cloud_api' } });
+
+    await scheduler.tick(false); // încercarea 1 → pending, cu eroare explicită
+    let r = db.get<{ status: string; error_message: string | null }>(
+      `SELECT status, error_message FROM reminders WHERE offset_days = 30`,
+    );
+    expect(r!.status).toBe('pending');
+    expect(r!.error_message).toMatch(/configurat incomplet/i);
+
+    await scheduler.tick(false); // încercarea 2
+    await scheduler.tick(false); // încercarea 3 → failed
+    r = db.get(`SELECT status, error_message FROM reminders WHERE offset_days = 30`);
+    expect(r!.status).toBe('failed');
+
+    const log = db.get<{ status: string }>(`SELECT status FROM message_logs WHERE channel = 'whatsapp'`);
+    expect(log!.status).toBe('failed');
+  });
+
   it('la pornire după pauză lungă: digest pentru restante, nu avalanșă', async () => {
     intervention('2026-08-13', '2026-08-13');
     // Pornim aplicația pe 12.11 — reminderele de 30 și 14 zile sunt restante,

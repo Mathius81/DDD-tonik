@@ -66,8 +66,14 @@ const api = {
     update: invoke(IPC.settings.update),
     setSecret: invoke(IPC.settings.setSecret),
     testSmtp: invoke(IPC.settings.testSmtp),
+    testWhatsapp: invoke(IPC.settings.testWhatsapp),
     sendDigestNow: invoke(IPC.settings.sendDigestNow),
     chooseBackupFolder: invoke(IPC.settings.chooseBackupFolder),
+    whatsappTemplateMap: {
+      list: invoke(IPC.settings.whatsappTemplateMap.list),
+      upsert: invoke(IPC.settings.whatsappTemplateMap.upsert),
+      delete: invoke(IPC.settings.whatsappTemplateMap.delete),
+    },
   },
   license: {
     check: invoke(IPC.license.check),

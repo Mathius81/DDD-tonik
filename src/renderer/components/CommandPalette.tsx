@@ -1,21 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, TextInput, Stack, Text, UnstyledButton, Kbd } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import {
-  IconSearch,
-  IconLayoutDashboard,
-  IconBuildingCommunity,
-  IconSpray,
-  IconCalendarEvent,
-  IconBellRinging,
-  IconMailForward,
-  IconSettings,
-  IconPlus,
-  IconDeviceFloppy,
-} from '@tabler/icons-react';
+import { IconSearch, IconBuildingCommunity, IconPlus, IconDeviceFloppy } from '@tabler/icons-react';
 import { ddd } from '../api/ddd';
 import { unwrap, runMutation } from '../api/useIpc';
 import { unaccentRo } from '../../shared/text';
+import { useWorkspace, workspacePath } from '../workspace';
 import type { AssociationListItem } from '../../shared/schemas/association';
 import type { Paginated } from '../../shared/schemas/common';
 
@@ -33,9 +23,13 @@ interface Props {
   onAddIntervention: () => void;
 }
 
-/** Command palette (Cmd/Ctrl+K) — pagini, acțiuni și căutare de asociații (Brief §7.1). */
+/**
+ * Command palette (Cmd/Ctrl+K) — pagini, acțiuni și căutare, toate limitate
+ * la spațiul de lucru curent (Brief: comutator de spații de lucru §7).
+ */
 export function CommandPalette({ opened, onClose, onAddIntervention }: Props) {
   const navigate = useNavigate();
+  const { workspace, navItems } = useWorkspace();
   const [query, setQuery] = useState('');
   const [associations, setAssociations] = useState<AssociationListItem[]>([]);
   const [highlighted, setHighlighted] = useState(0);
@@ -44,6 +38,12 @@ export function CommandPalette({ opened, onClose, onAddIntervention }: Props) {
     if (!opened) {
       setQuery('');
       setHighlighted(0);
+      setAssociations([]);
+      return;
+    }
+    // Căutarea de asociații e specifică datelor DDD — nu are sens în celelalte spații.
+    if (workspace !== 'ddd') {
+      setAssociations([]);
       return;
     }
     unwrap<Paginated<AssociationListItem>>(
@@ -51,23 +51,26 @@ export function CommandPalette({ opened, onClose, onAddIntervention }: Props) {
     )
       .then((r) => setAssociations(r.items))
       .catch(() => undefined);
-  }, [opened]);
+  }, [opened, workspace]);
 
   const go = (path: string) => {
     onClose();
     navigate(path);
   };
 
-  const baseCommands: Command[] = useMemo(
-    () => [
-      { id: 'nav-dashboard', label: 'Dashboard', hint: '⌘1', icon: <IconLayoutDashboard size={16} />, run: () => go('/') },
-      { id: 'nav-asociatii', label: 'Asociații', hint: '⌘2', icon: <IconBuildingCommunity size={16} />, run: () => go('/asociatii') },
-      { id: 'nav-interventii', label: 'Intervenții', hint: '⌘3', icon: <IconSpray size={16} />, run: () => go('/interventii') },
-      { id: 'nav-calendar', label: 'Calendar', hint: '⌘4', icon: <IconCalendarEvent size={16} />, run: () => go('/calendar') },
-      { id: 'nav-remindere', label: 'Remindere', hint: '⌘5', icon: <IconBellRinging size={16} />, run: () => go('/remindere') },
-      { id: 'nav-mesaje', label: 'Mesaje', hint: '⌘6', icon: <IconMailForward size={16} />, run: () => go('/mesaje') },
-      { id: 'nav-setari', label: 'Setări', hint: '⌘7', icon: <IconSettings size={16} />, run: () => go('/setari') },
-      {
+  const baseCommands: Command[] = useMemo(() => {
+    const pages: Command[] = navItems.map((item, i) => ({
+      id: `nav-${item.key}`,
+      label: item.label,
+      hint: i < 9 ? `⌘${i + 1}` : undefined,
+      icon: <item.icon size={16} />,
+      run: () => go(workspacePath(workspace, item)),
+    }));
+
+    const actions: Command[] = [];
+    // Adăugarea de intervenții e o acțiune specifică DDD — ascunsă în alte spații.
+    if (workspace === 'ddd') {
+      actions.push({
         id: 'act-interventie',
         label: 'Adaugă intervenție',
         hint: '⌘N',
@@ -76,24 +79,26 @@ export function CommandPalette({ opened, onClose, onAddIntervention }: Props) {
           onClose();
           onAddIntervention();
         },
+      });
+    }
+    actions.push({
+      id: 'act-backup',
+      label: 'Fă backup acum',
+      icon: <IconDeviceFloppy size={16} />,
+      run: async () => {
+        onClose();
+        await runMutation(ddd.backup.create(), 'Backup creat.');
       },
-      {
-        id: 'act-backup',
-        label: 'Fă backup acum',
-        icon: <IconDeviceFloppy size={16} />,
-        run: async () => {
-          onClose();
-          await runMutation(ddd.backup.create(), 'Backup creat.');
-        },
-      },
-    ],
-    [],
-  );
+    });
+
+    return [...pages, ...actions];
+  }, [navItems, workspace]);
 
   const results: Command[] = useMemo(() => {
     const q = unaccentRo(query.trim());
     if (!q) return baseCommands;
     const commands = baseCommands.filter((c) => unaccentRo(c.label).includes(q));
+    if (workspace !== 'ddd') return commands;
     const assocMatches = associations
       .filter((a) => unaccentRo(a.name).includes(q) || unaccentRo(a.address).includes(q))
       .slice(0, 8)
@@ -102,10 +107,10 @@ export function CommandPalette({ opened, onClose, onAddIntervention }: Props) {
         label: a.name,
         hint: a.address,
         icon: <IconBuildingCommunity size={16} />,
-        run: () => go(`/asociatii/${a.id}`),
+        run: () => go(`/ddd/asociatii/${a.id}`),
       }));
     return [...assocMatches, ...commands];
-  }, [query, baseCommands, associations]);
+  }, [query, baseCommands, associations, workspace]);
 
   useEffect(() => setHighlighted(0), [results.length, query]);
 

@@ -61,8 +61,15 @@ export const IPC = {
     update: 'settings:update',
     setSecret: 'settings:setSecret',
     testSmtp: 'settings:testSmtp',
+    /** Verifică token + Phone Number ID pentru WhatsApp Business Cloud API. */
+    testWhatsapp: 'settings:testWhatsapp',
     sendDigestNow: 'settings:sendDigestNow',
     chooseBackupFolder: 'settings:chooseBackupFolder',
+    whatsappTemplateMap: {
+      list: 'settings:whatsappTemplateMap:list',
+      upsert: 'settings:whatsappTemplateMap:upsert',
+      delete: 'settings:whatsappTemplateMap:delete',
+    },
   },
   license: {
     check: 'license:check',

@@ -48,6 +48,40 @@ export class ReminderRepository {
     );
   }
 
+  /**
+   * „Reclamă" atomic un reminder `pending` pentru procesare (UPDATE condiționat pe
+   * status, într-un singur pas SQL). Previne dubla trimitere când două tick-uri ale
+   * scheduler-ului se suprapun: dacă rândul nu mai era `pending` (deja reclamat de
+   * alt tick), UPDATE-ul nu modifică niciun rând și metoda întoarce `false`.
+   */
+  claimForProcessing(id: number): boolean {
+    const result = this.db.run(
+      `UPDATE reminders
+       SET status = 'processing', updated_at = datetime('now')
+       WHERE id = ? AND status = 'pending'`,
+      id,
+    );
+    return Number(result.changes) > 0;
+  }
+
+  /**
+   * La pornirea aplicației: reminderele rămase blocate pe `processing` dintr-o cădere
+   * anterioară (aplicația s-a închis în timpul trimiterii) devin `failed` — deliberat
+   * NU `pending`, ca să nu se retrimită automat un mesaj care poate a ajuns deja la
+   * client; utilizatorul decide manual din pagina Remindere. Întoarce numărul de
+   * rânduri recuperate.
+   */
+  sweepStuckProcessing(): number {
+    const result = this.db.run(
+      `UPDATE reminders
+       SET status = 'failed',
+           error_message = 'Întrerupt de închiderea aplicației — verifică dacă mesajul a plecat și retrimite dacă e cazul.',
+           updated_at = datetime('now')
+       WHERE status = 'processing'`,
+    );
+    return Number(result.changes);
+  }
+
   setStatus(id: number, status: ReminderStatus, errorMessage?: string | null): void {
     this.db.run(
       `UPDATE reminders

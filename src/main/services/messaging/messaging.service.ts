@@ -4,6 +4,12 @@ import type { SecretsService } from '../secrets.service';
 import { renderTemplate, normalizePhoneE164, type TemplateContext } from './template-render';
 import { SmtpEmailProvider } from './email.provider';
 import { renderEmailHtml, textToHtml, logoAttachment } from './email-template';
+import {
+  WhatsappCloudProvider,
+  WHATSAPP_REENGAGEMENT_ERROR_CODE,
+  WHATSAPP_DRY_RUN_ERROR_MESSAGE,
+  type WhatsappSendResult,
+} from './whatsapp.provider';
 import { UserFacingError } from '../../ipc/register';
 import type { SendMessageInput, MessageLog } from '../../../shared/schemas/message';
 import type { Contact } from '../../../shared/schemas/contact';
@@ -18,6 +24,22 @@ export class MessagingService {
     private secrets: SecretsService,
   ) {}
 
+  /** Contextul de variabile pentru un contact + followup — comun template-urilor obișnuite și celor Meta. */
+  private templateContextFor(contact: Contact, followupId: number | null): TemplateContext {
+    const followup = followupId ? this.ctx.followups.getById(followupId) : undefined;
+    const association = this.ctx.associations.getById(contact.association_id);
+    const service = followup ? this.ctx.services.getById(followup.service_id) : undefined;
+    const settings = this.ctx.settings.get();
+    return {
+      contact_name: contact.name,
+      association_name: association?.name ?? '',
+      service_name: service?.name ?? '',
+      due_date: followup?.due_date ?? this.ctx.todayIso(),
+      todayIso: this.ctx.todayIso(),
+      company: settings.company,
+    };
+  }
+
   /** Construiește corpul mesajului din template pentru un contact + followup. */
   buildMessage(
     contactId: number,
@@ -28,23 +50,11 @@ export class MessagingService {
     const contact = this.ctx.contacts.getById(contactId);
     if (!contact) throw new UserFacingError('Contactul nu a fost găsit.');
 
-    const followup = followupId ? this.ctx.followups.getById(followupId) : undefined;
-    const association = this.ctx.associations.getById(contact.association_id);
-    const service = followup ? this.ctx.services.getById(followup.service_id) : undefined;
-    const settings = this.ctx.settings.get();
-
     const template = templateId
       ? this.ctx.messages.getTemplate(templateId)
       : this.ctx.messages.getActiveTemplateForChannel(channel === 'sms' ? 'whatsapp' : channel);
 
-    const templateCtx: TemplateContext = {
-      contact_name: contact.name,
-      association_name: association?.name ?? '',
-      service_name: service?.name ?? '',
-      due_date: followup?.due_date ?? this.ctx.todayIso(),
-      todayIso: this.ctx.todayIso(),
-      company: settings.company,
-    };
+    const templateCtx = this.templateContextFor(contact, followupId);
 
     const body = template ? renderTemplate(template.body, templateCtx) : '';
     const subject = template?.subject ? renderTemplate(template.subject, templateCtx) : null;
@@ -67,6 +77,16 @@ export class MessagingService {
     }
 
     if (input.channel === 'whatsapp') {
+      // Rutare pe modul configurat (spec „mod automat" Cloud API, lângă cel asistat).
+      const mode = this.ctx.settings.get().whatsapp.mode;
+      if (mode === 'disabled') {
+        throw new UserFacingError(
+          'Trimiterea prin WhatsApp este dezactivată. Activeaz-o din Setări → WhatsApp.',
+        );
+      }
+      if (mode === 'cloud_api') {
+        return this.sendWhatsappCloudApi(contact, finalBody, input, templateUsedId);
+      }
       return this.sendWhatsappAssisted(contact, finalBody, input);
     }
     if (input.channel === 'email') {
@@ -168,6 +188,101 @@ export class MessagingService {
     return log;
   }
 
+  /** Trimitere explicită (din UI) prin WhatsApp Business Cloud API — mod „automat". */
+  private async sendWhatsappCloudApi(
+    contact: Contact,
+    body: string,
+    input: SendMessageInput,
+    templateUsedId: number | null,
+  ): Promise<MessageLog> {
+    if (!contact.allow_whatsapp) throw new UserFacingError('Contactul nu permite WhatsApp.');
+    if (!contact.phone) throw new UserFacingError('Contactul nu are număr de telefon.');
+    const phone = normalizePhoneE164(contact.phone);
+    if (!phone) {
+      throw new UserFacingError(
+        `Numărul de telefon „${contact.phone}” nu pare valid. Corectează-l în fișa contactului.`,
+      );
+    }
+
+    const result = await this.sendWhatsappCloudApiAuto(
+      contact,
+      phone,
+      body,
+      input.followup_id,
+      templateUsedId,
+    );
+
+    const log = this.ctx.messages.insertLog({
+      association_id: contact.association_id,
+      contact_id: contact.id,
+      followup_id: input.followup_id,
+      reminder_id: input.reminder_id,
+      channel: 'whatsapp',
+      recipient: contact.phone,
+      template_id: input.template_id ?? templateUsedId,
+      message_preview: body.slice(0, 500),
+      status: result.ok ? 'accepted_by_provider' : 'failed',
+      provider_message_id: result.wamid ?? null,
+      error_message: result.error ?? null,
+    });
+
+    if (!result.ok) {
+      this.ctx.logger.error(`WhatsApp Cloud API eșuat pentru contact #${contact.id}: ${result.error}`);
+      throw new UserFacingError(result.error ?? 'Mesajul WhatsApp nu a putut fi trimis.');
+    }
+    return log;
+  }
+
+  /**
+   * Trimite prin Cloud API cu strategia text-liber-cu-fallback-la-template: încearcă
+   * întâi text liber (funcționează doar în fereastra de 24h de conversație); dacă Meta
+   * răspunde cu 131047 (fereastra închisă), reîncearcă automat cu template-ul mapat
+   * pentru `templateUsedId`. Nu aruncă — întoarce rezultatul brut, ca apelantul
+   * (trimitere explicită sau scheduler) să-și scrie propriul log.
+   */
+  async sendWhatsappCloudApiAuto(
+    contact: Contact,
+    phone: string,
+    body: string,
+    followupId: number | null,
+    templateUsedId: number | null,
+  ): Promise<WhatsappSendResult> {
+    const provider = this.whatsappProvider();
+    if (provider.isDryRun()) {
+      // Fără token sau Phone Number ID valide nu trimitem nimic real — și nu raportăm
+      // succes simulat (spec: fără DRY-RUN tăcut). Reminderul trebuie să treacă prin
+      // failOrRetry și să devină vizibil `failed`, nu `sent` pentru un mesaj inexistent.
+      return { ok: false, error: WHATSAPP_DRY_RUN_ERROR_MESSAGE };
+    }
+    const result = await provider.sendText(phone, body);
+    if (!result.ok && result.errorCode === WHATSAPP_REENGAGEMENT_ERROR_CODE) {
+      return this.sendWhatsappTemplateFallback(provider, contact, phone, templateUsedId, followupId);
+    }
+    return result;
+  }
+
+  /** Fallback la template aprobat de Meta când fereastra de 24h s-a închis. */
+  private async sendWhatsappTemplateFallback(
+    provider: WhatsappCloudProvider,
+    contact: Contact,
+    phone: string,
+    templateUsedId: number | null,
+    followupId: number | null,
+  ): Promise<WhatsappSendResult> {
+    const mapping = templateUsedId ? this.ctx.messages.getWhatsappTemplateMap(templateUsedId) : undefined;
+    if (!mapping) {
+      return {
+        ok: false,
+        error:
+          'Fereastra de 24h de conversație s-a închis, iar acest template nu are un template ' +
+          'WhatsApp aprobat de Meta asociat. Configurează maparea din Setări → WhatsApp.',
+      };
+    }
+    const templateCtx = this.templateContextFor(contact, followupId);
+    const params = mapping.variables.map((v) => renderTemplate(`{{${v}}}`, templateCtx));
+    return provider.sendTemplate(phone, mapping.meta_template_name, mapping.language, params);
+  }
+
   private async sendEmail(
     contact: Contact,
     subject: string,
@@ -231,5 +346,13 @@ export class MessagingService {
   emailProvider(): SmtpEmailProvider {
     const settings = this.ctx.settings.get();
     return new SmtpEmailProvider(settings.smtp, this.secrets.get('smtp_password'));
+  }
+
+  whatsappProvider(): WhatsappCloudProvider {
+    const settings = this.ctx.settings.get().whatsapp;
+    return new WhatsappCloudProvider(
+      { phoneNumberId: settings.phone_number_id, accessToken: this.secrets.get('whatsapp_access_token') },
+      this.ctx.logger,
+    );
   }
 }

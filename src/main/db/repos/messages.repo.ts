@@ -9,9 +9,20 @@ import type {
   MessageTemplateUpdate,
 } from '../../../shared/schemas/message';
 import type { Paginated } from '../../../shared/schemas/common';
+import type { WhatsappTemplateMap, WhatsappTemplateMapUpsert } from '../../../shared/schemas/settings';
 
 interface TemplateRow extends Omit<MessageTemplate, 'active'> {
   active: number;
+}
+
+interface TemplateMapRow {
+  id: number;
+  message_template_id: number;
+  meta_template_name: string;
+  language: string;
+  variables: string; // JSON serializat
+  created_at: string;
+  updated_at: string;
 }
 
 export class MessageRepository {
@@ -166,5 +177,55 @@ export class MessageRepository {
     );
 
     return { items: rows, total, page: filter.page, pageSize: filter.pageSize };
+  }
+
+  // --- Mapare template-uri WhatsApp Cloud API (spec „mod automat") ---
+
+  private toTemplateMap(row: TemplateMapRow): WhatsappTemplateMap {
+    let variables: string[];
+    try {
+      const parsed: unknown = JSON.parse(row.variables);
+      variables = Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      variables = [];
+    }
+    return { ...row, variables };
+  }
+
+  listWhatsappTemplateMaps(): WhatsappTemplateMap[] {
+    return this.db
+      .all<TemplateMapRow>('SELECT * FROM whatsapp_template_map ORDER BY id')
+      .map((r) => this.toTemplateMap(r));
+  }
+
+  /** Maparea configurată pentru un template local, sau undefined dacă nu există. */
+  getWhatsappTemplateMap(messageTemplateId: number): WhatsappTemplateMap | undefined {
+    const row = this.db.get<TemplateMapRow>(
+      'SELECT * FROM whatsapp_template_map WHERE message_template_id = ?',
+      messageTemplateId,
+    );
+    return row ? this.toTemplateMap(row) : undefined;
+  }
+
+  /** Creează sau actualizează maparea unui template local (un singur rând per template). */
+  upsertWhatsappTemplateMap(data: WhatsappTemplateMapUpsert): WhatsappTemplateMap {
+    this.db.run(
+      `INSERT INTO whatsapp_template_map (message_template_id, meta_template_name, language, variables)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(message_template_id) DO UPDATE SET
+         meta_template_name = excluded.meta_template_name,
+         language = excluded.language,
+         variables = excluded.variables,
+         updated_at = datetime('now')`,
+      data.message_template_id,
+      data.meta_template_name,
+      data.language,
+      JSON.stringify(data.variables),
+    );
+    return this.getWhatsappTemplateMap(data.message_template_id)!;
+  }
+
+  deleteWhatsappTemplateMap(id: number): void {
+    this.db.run('DELETE FROM whatsapp_template_map WHERE id = ?', id);
   }
 }

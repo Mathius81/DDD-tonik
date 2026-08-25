@@ -71,15 +71,67 @@ table,
   border-right: none;
 }
 
-/* Zona de sus a sidebar-ului e și zona de drag a ferestrei
-   (titlebar hiddenInset pe macOS / custom pe Windows). */
+/* Zonă de drag a ferestrei (titlebar hiddenInset pe macOS / titleBarOverlay pe
+   Windows) — folosită de bara de spații de lucru din vârful ferestrei, care e
+   acum și titlebar-ul integrat. Doar elementele interactive (butoane, linkuri)
+   rămân clickabile — restul zonei permite mutarea ferestrei ca un titlebar. */
 .tonik-drag-region {
   -webkit-app-region: drag;
-  height: 30px;
-  flex-shrink: 0;
 }
-.tonik-drag-region * {
+.tonik-drag-region button,
+.tonik-drag-region a {
   -webkit-app-region: no-drag;
+}
+
+/* ============================================================
+   Comutator de spații de lucru — rând de „foi” peste toată
+   lățimea ferestrei, deasupra sidebar-ului și a conținutului.
+   ============================================================ */
+
+.tonik-workspace-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  background: var(--bg-sidebar);
+  padding: 0 var(--sp-2);
+  gap: 2px;
+}
+
+/* Rezervă spațiu pentru butoanele semafor de pe macOS. */
+.tonik-workspace-tabs-gutter {
+  flex-shrink: 0;
+  width: 72px;
+}
+
+.tonik-workspace-tabs-spacer {
+  flex: 1;
+}
+
+.tonik-workspace-tab {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 var(--sp-4);
+  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--text-on-dark-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.tonik-workspace-tab:hover {
+  background: var(--bg-sidebar-hi);
+  color: var(--text-on-dark);
+}
+
+.tonik-workspace-tab[data-active='true'] {
+  background: var(--bg-sidebar-hi);
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .tonik-nav-link {

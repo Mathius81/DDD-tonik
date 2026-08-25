@@ -1,52 +1,23 @@
 import { useEffect, useState } from 'react';
 import { AppShell, Box, Stack, Text } from '@mantine/core';
 import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
-import {
-  IconLayoutDashboard,
-  IconBuildingCommunity,
-  IconSpray,
-  IconCalendarEvent,
-  IconBellRinging,
-  IconMailForward,
-  IconSettings,
-} from '@tabler/icons-react';
 import { ddd } from '../api/ddd';
 import { unwrap } from '../api/useIpc';
 import { TonikLogo } from './TonikLogo';
 import { NotificationCenter } from './NotificationCenter';
 import { CommandPalette } from './CommandPalette';
+import { WorkspaceTabs } from './WorkspaceTabs';
 import { InterventionFormModal } from '../pages/interventii/InterventionFormModal';
+import {
+  WorkspaceProvider,
+  useWorkspace,
+  workspacePath,
+  WORKSPACE_ORDER,
+  type WorkspaceNavItem,
+} from '../workspace';
 
-const pageOrder = ['/', '/asociatii', '/interventii', '/calendar', '/remindere', '/mesaje', '/setari'];
-
-const navSections: Array<{
-  label: string | null;
-  items: Array<{ path: string; label: string; icon: typeof IconLayoutDashboard }>;
-}> = [
-  {
-    label: null,
-    items: [{ path: '/', label: 'Dashboard', icon: IconLayoutDashboard }],
-  },
-  {
-    label: 'Operațiuni',
-    items: [
-      { path: '/asociatii', label: 'Asociații', icon: IconBuildingCommunity },
-      { path: '/interventii', label: 'Intervenții', icon: IconSpray },
-      { path: '/calendar', label: 'Calendar', icon: IconCalendarEvent },
-    ],
-  },
-  {
-    label: 'Comunicare',
-    items: [
-      { path: '/remindere', label: 'Remindere', icon: IconBellRinging },
-      { path: '/mesaje', label: 'Mesaje', icon: IconMailForward },
-    ],
-  },
-  {
-    label: 'Sistem',
-    items: [{ path: '/setari', label: 'Setări', icon: IconSettings }],
-  },
-];
+/** Înălțimea rândului de spații de lucru din vârful ferestrei. */
+const WORKSPACE_TABS_HEIGHT = 40;
 
 interface BackupInfo {
   name: string;
@@ -69,19 +40,38 @@ function backupAgeDays(iso: string): number {
   return Math.floor((Date.now() - then.getTime()) / 86_400_000);
 }
 
-export function AppShellLayout() {
+/** Grupează itemii meniului spațiului curent pe secțiuni consecutive (eyebrow-uri). */
+function groupNavSections(
+  items: WorkspaceNavItem[],
+): Array<{ label: string | null; items: WorkspaceNavItem[] }> {
+  const sections: Array<{ label: string | null; items: WorkspaceNavItem[] }> = [];
+  for (const item of items) {
+    const last = sections[sections.length - 1];
+    if (last && last.label === item.section) {
+      last.items.push(item);
+    } else {
+      sections.push({ label: item.section, items: [item] });
+    }
+  }
+  return sections;
+}
+
+function AppShellLayoutContent() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { workspace, navItems, switchWorkspace } = useWorkspace();
   const [lastBackup, setLastBackup] = useState<BackupInfo | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [interventionOpen, setInterventionOpen] = useState(false);
 
-  // Click pe notificarea Windows → main trimite ruta țintă.
+  // Click pe notificarea Windows → main trimite ruta țintă (poate fi o rută
+  // veche fără prefix; router-ul o redirectează la echivalentul din /ddd).
   useEffect(() => {
     return ddd.events.onNavigate((route) => navigate(route));
   }, [navigate]);
 
-  // Scurtături globale (Brief §7.2): ⌘K paletă, ⌘1..7 pagini, ⌘N intervenție.
+  // Scurtături globale: ⌘K paletă, ⌘1..9 paginile spațiului curent,
+  // ⌘⇧1/2/3 comutare între spații, ⌘N intervenție nouă (are sens doar în DDD).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
@@ -89,19 +79,30 @@ export function AppShellLayout() {
       if (e.key === 'k') {
         e.preventDefault();
         setPaletteOpen((v) => !v);
-      } else if (e.key === 'n') {
+        return;
+      }
+      if (e.key === 'n') {
         e.preventDefault();
-        setInterventionOpen(true);
-      } else if (e.key >= '1' && e.key <= '7') {
-        e.preventDefault();
-        navigate(pageOrder[Number(e.key) - 1]);
+        if (workspace === 'ddd') setInterventionOpen(true);
+        return;
+      }
+      const digitMatch = /^Digit([1-9])$/.exec(e.code);
+      if (!digitMatch) return;
+      const n = Number(digitMatch[1]);
+      e.preventDefault();
+      if (e.shiftKey) {
+        const target = WORKSPACE_ORDER[n - 1];
+        if (target) switchWorkspace(target);
+      } else {
+        const item = navItems[n - 1];
+        if (item) navigate(workspacePath(workspace, item));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [navigate]);
+  }, [navigate, workspace, navItems, switchWorkspace]);
 
-  // Stare backup pentru subsolul sidebar-ului.
+  // Stare backup pentru subsolul sidebar-ului (global, indiferent de spațiu).
   useEffect(() => {
     const load = () =>
       unwrap<BackupInfo[]>(ddd.backup.list())
@@ -113,16 +114,18 @@ export function AppShellLayout() {
   }, []);
 
   const isActive = (path: string) =>
-    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
+    path === `/${workspace}` ? location.pathname === path : location.pathname.startsWith(path);
 
   const backupStale = lastBackup ? backupAgeDays(lastBackup.created_at) >= 2 : true;
+  const navSections = groupNavSections(navItems);
 
   return (
-    <AppShell navbar={{ width: 228, breakpoint: 0 }} padding={0}>
-      <AppShell.Navbar className="tonik-sidebar" p="var(--sp-3)" pt={0}>
-        {/* Zonă de drag pentru fereastră (titlebar integrat) */}
-        <div className="tonik-drag-region" />
+    <AppShell header={{ height: WORKSPACE_TABS_HEIGHT }} navbar={{ width: 228, breakpoint: 0 }} padding={0}>
+      <AppShell.Header withBorder={false} p={0} style={{ border: 'none' }}>
+        <WorkspaceTabs />
+      </AppShell.Header>
 
+      <AppShell.Navbar className="tonik-sidebar" p="var(--sp-3)" pt="var(--sp-3)">
         <Box px={6} pb={16} style={{ display: 'flex', justifyContent: 'center' }}>
           <TonikLogo />
         </Box>
@@ -137,12 +140,13 @@ export function AppShellLayout() {
               {section.label && <div className="tonik-nav-eyebrow">{section.label}</div>}
               {section.items.map((item) => {
                 const Icon = item.icon;
+                const path = workspacePath(workspace, item);
                 return (
                   <Link
-                    key={item.path}
-                    to={item.path}
+                    key={item.key}
+                    to={path}
                     className="tonik-nav-link"
-                    data-active={isActive(item.path) || undefined}
+                    data-active={isActive(path) || undefined}
                   >
                     <span className="tonik-nav-icon">
                       <Icon size={16} stroke={1.8} />
@@ -182,11 +186,21 @@ export function AppShellLayout() {
         onClose={() => setPaletteOpen(false)}
         onAddIntervention={() => setInterventionOpen(true)}
       />
-      <InterventionFormModal
-        opened={interventionOpen}
-        onClose={() => setInterventionOpen(false)}
-        onSaved={() => setInterventionOpen(false)}
-      />
+      {workspace === 'ddd' && (
+        <InterventionFormModal
+          opened={interventionOpen}
+          onClose={() => setInterventionOpen(false)}
+          onSaved={() => setInterventionOpen(false)}
+        />
+      )}
     </AppShell>
+  );
+}
+
+export function AppShellLayout() {
+  return (
+    <WorkspaceProvider>
+      <AppShellLayoutContent />
+    </WorkspaceProvider>
   );
 }

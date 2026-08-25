@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { reminderRulesSchema, defaultReminderRules } from './reminder';
+import { idSchema } from './common';
+import { templateVariables } from './message';
 
 export const companySettingsSchema = z.object({
   name: z.string().trim().max(200).default(''),
@@ -39,6 +41,11 @@ export const whatsappSettingsSchema = z.object({
   business_account_id: z.string().trim().max(100).default(''),
   /** Token-ul NU e aici — criptat cu safeStorage. */
   has_access_token: z.boolean().default(false),
+  /**
+   * @deprecated Înlocuit de maparea per-template din `whatsapp_template_map`
+   * (vezi `whatsappTemplateMapSchema` mai jos). Rămân în schemă doar pentru
+   * compatibilitate cu setările deja salvate; nu mai sunt citite de trimitere.
+   */
   template_name: z.string().trim().max(200).default(''),
   template_language: z.string().trim().max(10).default('ro'),
 });
@@ -84,3 +91,35 @@ export const setSecretSchema = z.object({
   key: z.enum(['smtp_password', 'whatsapp_access_token']),
   value: z.string().max(2000),
 });
+
+/**
+ * Mapare: un template local WhatsApp (message_templates.id) → un template aprobat
+ * pe Meta, cu limba lui și lista ORDONATĂ de variabile locale care completează
+ * pozițiile {{1}}, {{2}}... din template-ul Meta. Folosită automat ca fallback când
+ * fereastra de 24h de conversație s-a închis (eroarea Meta 131047) și textul liber
+ * nu mai poate fi trimis (spec Cloud API).
+ */
+export const whatsappTemplateMapUpsertSchema = z.object({
+  message_template_id: idSchema,
+  meta_template_name: z
+    .string()
+    .trim()
+    .min(1, 'Numele template-ului aprobat de Meta este obligatoriu')
+    .max(200),
+  language: z.string().trim().min(2, 'Codul de limbă este obligatoriu').max(10).default('ro'),
+  variables: z.array(z.enum(templateVariables)).max(10).default([]),
+});
+export type WhatsappTemplateMapUpsert = z.infer<typeof whatsappTemplateMapUpsertSchema>;
+
+export const whatsappTemplateMapDeleteSchema = z.object({ id: idSchema });
+
+/** Rândul complet, așa cum e citit din DB (id + timestamps în plus față de upsert). */
+export interface WhatsappTemplateMap {
+  id: number;
+  message_template_id: number;
+  meta_template_name: string;
+  language: string;
+  variables: string[];
+  created_at: string;
+  updated_at: string;
+}
