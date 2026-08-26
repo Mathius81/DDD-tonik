@@ -8,11 +8,12 @@
  * sau distribuirea fără acordul scris al autorului sunt interzise.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Button, Stack, Group, Switch, SegmentedControl, Text } from '@mantine/core';
+import { Anchor, Button, Stack, Group, Switch, SegmentedControl, Text } from '@mantine/core';
 import { IconAdjustments, IconInfoCircle } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { runMutation, useIpcQuery } from '../../api/useIpc';
 import { SectionCard } from '../../components/SectionCard';
+import { ThirdPartyLicensesModal } from '../../components/ThirdPartyLicensesModal';
 import { SECRET_MENU_EVENT, SECRET_MENU_CANCELLED_EVENT } from '../../components/SemnaturaAutor';
 import {
   applyAppearance,
@@ -88,6 +89,7 @@ export function AplicatieTab({ settings, onSaved }: { settings: Settings; onSave
 
   const { data: about } = useIpcQuery<AboutInfo>(() => ddd.about.get(), []);
   const { indiciu, inregistreazaClick } = useContorSecret();
+  const [licenteDeschise, setLicenteDeschise] = useState(false);
 
   const applyTheme = (t: ThemePref) => {
     setThemePref(t);
@@ -200,8 +202,14 @@ export function AplicatieTab({ settings, onSaved }: { settings: Settings; onSave
           <Text size="var(--fs-micro)" c="dimmed" mt={indiciu ? 4 : 0} h={16}>
             {indiciu ?? ''}
           </Text>
+
+          <Anchor size="var(--fs-small)" mt={10} onClick={() => setLicenteDeschise(true)} style={{ cursor: 'pointer' }}>
+            Licențe și componente open-source
+          </Anchor>
         </Stack>
       </SectionCard>
+
+      <ThirdPartyLicensesModal opened={licenteDeschise} onClose={() => setLicenteDeschise(false)} />
     </Stack>
   );
 }

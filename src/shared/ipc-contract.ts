@@ -100,6 +100,12 @@ export const IPC = {
     secretMenuSetPassword: 'about:secretMenuSetPassword',
     secretMenuVerifyPassword: 'about:secretMenuVerifyPassword',
     secretMenuChangePassword: 'about:secretMenuChangePassword',
+    /** Licențele componentelor open-source — vezi Setări → Aplicație → Despre. */
+    thirdPartyLicenses: {
+      list: 'about:thirdPartyLicenses:list',
+      getText: 'about:thirdPartyLicenses:getText',
+      openFile: 'about:thirdPartyLicenses:openFile',
+    },
   },
   /** Spațiul de lucru Covoare (spălare covoare) — date izolate de DDD. */
   carpets: {

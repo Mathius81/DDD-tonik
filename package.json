@@ -18,7 +18,8 @@
     "lint": "eslint --ext .ts,.tsx src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "licenses": "node tools/third-party-licenses.mjs"
   },
   "keywords": [],
   "author": {

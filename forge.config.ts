@@ -6,7 +6,14 @@
  * Configurația de împachetare. `appCopyright` ajunge în metadatele fișierului
  * executabil: pe Windows se vede în Proprietăți → Detalii, deci autorul rămâne
  * vizibil chiar și pentru cine nu are codul sursă.
+ *
+ * `packagerConfig.extraResource` copiază THIRD-PARTY-LICENSES.txt (generat de
+ * `npm run licenses` — vezi tools/third-party-licenses.mjs) în folderul
+ * `resources/` de lângă executabil, accesibil la runtime prin
+ * `process.resourcesPath` (vezi `about.ipc.ts`, handlerele `thirdPartyLicenses`).
+ * Calea e absolută, ca să nu depindă de `cwd`-ul din care rulează Forge.
  */
+import path from 'node:path';
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
@@ -23,6 +30,7 @@ const config: ForgeConfig = {
     executableName: 'DDDManager',
     appBundleId: 'ro.dddmanager.app',
     appCopyright: 'Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.',
+    extraResource: [path.join(process.cwd(), 'THIRD-PARTY-LICENSES.txt')],
     win32metadata: {
       CompanyName: 'Marius Constantinescu',
       FileDescription: 'Tonik — DDD Manager',

@@ -26,6 +26,8 @@ import type {
   AboutSecretMenuVerifyResult,
   AboutStats,
   AboutTableCounts,
+  AboutThirdPartyLicenseText,
+  AboutThirdPartyLicenses,
   AboutTopAssociation,
 } from '../../shared/schemas/about';
 import {
@@ -33,6 +35,7 @@ import {
   secretMenuChangePasswordSchema,
   secretMenuSetPasswordSchema,
   secretMenuVerifyPasswordSchema,
+  thirdPartyLicenseTextSchema,
 } from '../../shared/schemas/about';
 import { AUTHOR_NAME, AUTHOR_EMAIL, COPYRIGHT_YEAR } from '../../shared/authorship';
 
@@ -119,6 +122,52 @@ function readRecentErrors(logsDir: string): string[] {
     // Un log ilizibil nu trebuie să strice diagnosticul — restul raportului tot are valoare.
     return [];
   }
+}
+
+// --- Licențele componentelor open-source (THIRD-PARTY-LICENSES.txt) --------
+// Generat de `tools/third-party-licenses.mjs` (npm run licenses) și comis în
+// git. La runtime, calea diferă: în dezvoltare e în rădăcina proiectului
+// (`app.getAppPath()`), în aplicația împachetată e lângă executabil, copiat
+// acolo de `packagerConfig.extraResource` din forge.config.ts.
+const THIRD_PARTY_FILE_NAME = 'THIRD-PARTY-LICENSES.txt';
+const THIRD_PARTY_PACKAGE_MARKER = '<<<TONIK-THIRD-PARTY-PACKAGE>>>';
+const THIRD_PARTY_BODY_SEPARATOR = '\n---\n';
+
+interface ThirdPartyEntry {
+  name: string;
+  version: string;
+  license: string;
+  copyright: string;
+  text: string;
+}
+
+function resolveThirdPartyLicensesPath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, THIRD_PARTY_FILE_NAME)
+    : path.join(app.getAppPath(), THIRD_PARTY_FILE_NAME);
+}
+
+/** Citește și parsează THIRD-PARTY-LICENSES.txt după marcatorii scriși de generator. */
+function readThirdPartyEntries(filePath: string): ThirdPartyEntry[] | null {
+  if (!fs.existsSync(filePath)) return null;
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const chunks = raw.split(`\n${THIRD_PARTY_PACKAGE_MARKER}\n`).slice(1);
+  const entries: ThirdPartyEntry[] = [];
+  for (const chunk of chunks) {
+    const bodyStart = chunk.indexOf(THIRD_PARTY_BODY_SEPARATOR);
+    if (bodyStart === -1) continue;
+    const meta = chunk.slice(0, bodyStart);
+    const text = chunk.slice(bodyStart + THIRD_PARTY_BODY_SEPARATOR.length).replace(/\n+$/, '');
+    const pachet = /^Pachet:\s*(.+)$/m.exec(meta)?.[1]?.trim() ?? '';
+    const licenta = /^Licen[țt]ă:\s*(.+)$/m.exec(meta)?.[1]?.trim() ?? 'necunoscută';
+    const copyright = /^Copyright:\s*(.+)$/m.exec(meta)?.[1]?.trim() ?? 'necunoscut';
+    if (!pachet) continue;
+    const at = pachet.lastIndexOf('@');
+    const name = at > 0 ? pachet.slice(0, at) : pachet;
+    const version = at > 0 ? pachet.slice(at + 1) : '';
+    entries.push({ name, version, license: licenta, copyright, text });
+  }
+  return entries;
 }
 
 function toLicenseSummary(ctx: AppContext, license: LicenseService): AboutLicenseSummary {
@@ -268,6 +317,39 @@ export function registerAboutHandlers(ctx: AppContext, license: LicenseService):
   handle(IPC.about.openBackupsFolder, null, async () => {
     const err = await shell.openPath(resolveBackupDir(ctx));
     if (err) throw new UserFacingError(`Nu am putut deschide folderul de backup-uri: ${err}`);
+    return { opened: true };
+  });
+
+  // Licențele componentelor open-source — modalul din Despre. Lista întoarce
+  // doar metadatele (nume, versiune, licență, copyright); textul integral se
+  // cere separat, per pachet, ca să nu circule prin IPC dintr-o dată zeci de
+  // licențe întregi.
+  handle(IPC.about.thirdPartyLicenses.list, null, (): AboutThirdPartyLicenses => {
+    const entries = readThirdPartyEntries(resolveThirdPartyLicensesPath());
+    if (!entries) return { fileFound: false, packages: [] };
+    return {
+      fileFound: true,
+      packages: entries.map(({ name, version, license, copyright }) => ({ name, version, license, copyright })),
+    };
+  });
+
+  handle(
+    IPC.about.thirdPartyLicenses.getText,
+    thirdPartyLicenseTextSchema,
+    ({ name, version }): AboutThirdPartyLicenseText => {
+      const entries = readThirdPartyEntries(resolveThirdPartyLicensesPath());
+      const match = entries?.find((e) => e.name === name && e.version === version);
+      return match ? { found: true, text: match.text } : { found: false, text: '' };
+    },
+  );
+
+  handle(IPC.about.thirdPartyLicenses.openFile, null, async () => {
+    const filePath = resolveThirdPartyLicensesPath();
+    if (!fs.existsSync(filePath)) {
+      throw new UserFacingError('Fișierul THIRD-PARTY-LICENSES.txt nu a fost găsit.');
+    }
+    const err = await shell.openPath(filePath);
+    if (err) throw new UserFacingError(`Nu am putut deschide fișierul: ${err}`);
     return { opened: true };
   });
 

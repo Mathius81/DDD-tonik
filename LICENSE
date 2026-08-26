@@ -23,3 +23,20 @@ fi urmărită conform Legii nr. 8/1996 privind dreptul de autor și drepturile
 conexe, precum și conform legislației internaționale aplicabile.
 
 Pentru permisiuni: mc.constantinescu1981@gmail.com
+
+--------------------------------------------------------------------------------
+
+Componente open-source incluse în aplicație
+
+Cele de mai sus se referă strict la codul sursă scris de Marius Constantinescu
+pentru Tonik — DDD Manager. Ca orice aplicație Electron, Tonik include și
+componente open-source terțe (de exemplu Electron, React, Mantine, zod,
+nodemailer și alte biblioteci), fiecare rămânând sub PROPRIA ei licență
+(în marea majoritate MIT, ISC, BSD sau Apache-2.0), neschimbată de acest
+document.
+
+Lista completă a acestor componente — nume, versiune, tip de licență,
+deținătorul copyrightului și textul integral al fiecărei licențe — se află în
+fișierul `THIRD-PARTY-LICENSES.txt` din rădăcina proiectului (generat automat
+de `tools/third-party-licenses.mjs`; poate fi consultat și din aplicație, în
+Setări → Aplicație → Despre → „Licențe și componente open-source”).

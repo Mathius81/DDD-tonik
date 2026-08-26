@@ -99,6 +99,11 @@ const api = {
     secretMenuSetPassword: invoke(IPC.about.secretMenuSetPassword),
     secretMenuVerifyPassword: invoke(IPC.about.secretMenuVerifyPassword),
     secretMenuChangePassword: invoke(IPC.about.secretMenuChangePassword),
+    thirdPartyLicenses: {
+      list: invoke(IPC.about.thirdPartyLicenses.list),
+      getText: invoke(IPC.about.thirdPartyLicenses.getText),
+      openFile: invoke(IPC.about.thirdPartyLicenses.openFile),
+    },
   },
   carpets: {
     clients: {

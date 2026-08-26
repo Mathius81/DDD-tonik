@@ -136,3 +136,35 @@ export const secretMenuChangePasswordSchema = z.object({
   newPassword: z.string().min(4).max(200),
 });
 export type SecretMenuChangePasswordInput = z.infer<typeof secretMenuChangePasswordSchema>;
+
+/**
+ * O componentă open-source din THIRD-PARTY-LICENSES.txt — DOAR metadatele,
+ * fără textul integral al licenței (acela se cere separat, per pachet, ca să
+ * nu se trimită dintr-o dată în renderer textul a zeci de licențe).
+ */
+export interface AboutThirdPartyPackage {
+  name: string;
+  version: string;
+  license: string;
+  copyright: string;
+}
+
+/** Lista componentelor open-source — vezi „Licențe și componente open-source” din Despre. */
+export interface AboutThirdPartyLicenses {
+  /** False dacă THIRD-PARTY-LICENSES.txt lipsește (ex. n-a fost încă rulat `npm run licenses`). */
+  fileFound: boolean;
+  packages: AboutThirdPartyPackage[];
+}
+
+/** Cere textul integral al licenței unei singure componente, identificată prin nume+versiune. */
+export const thirdPartyLicenseTextSchema = z.object({
+  name: z.string().min(1),
+  version: z.string().min(1),
+});
+export type ThirdPartyLicenseTextInput = z.infer<typeof thirdPartyLicenseTextSchema>;
+
+/** Textul integral al licenței unei componente, cerut la nevoie (nu odată cu lista). */
+export interface AboutThirdPartyLicenseText {
+  found: boolean;
+  text: string;
+}

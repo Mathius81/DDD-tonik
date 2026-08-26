@@ -21,7 +21,11 @@ const electronMock = vi.hoisted(() => {
         handlers.set(channel, fn);
       }),
     },
-    app: { getVersion: vi.fn(() => '1.2.3') },
+    app: {
+      getVersion: vi.fn(() => '1.2.3'),
+      getAppPath: vi.fn(() => '/tmp/nu-e-setat-inca'),
+      isPackaged: false,
+    },
     shell: { openPath: vi.fn(async () => '') },
   };
 });
@@ -56,6 +60,7 @@ describe('about.ipc', () => {
   let db: Db;
   let cleanup: () => void;
   let dir: string;
+  let appRootDir: string;
   let paths: AppPaths;
   let ctx: AppContext;
   let license: LicenseService;
@@ -77,11 +82,18 @@ describe('about.ipc', () => {
     fs.mkdirSync(paths.backupsDir, { recursive: true });
     fs.mkdirSync(paths.logsDir, { recursive: true });
 
+    // Folder separat, care simulează rădăcina proiectului (`app.getAppPath()`)
+    // — acolo caută handlerele THIRD-PARTY-LICENSES.txt când aplicația NU e
+    // împachetată (`app.isPackaged === false`).
+    appRootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddd-about-root-'));
+
     ctx = new AppContext(db, paths, silentLogger, () => null, () => new Date('2026-08-20T09:00:00'));
     license = new LicenseService(ctx.settings, silentLogger, ctx.now);
 
     electronMock.handlers.clear();
     vi.mocked(app.getVersion).mockClear();
+    vi.mocked(app.getAppPath).mockClear().mockReturnValue(appRootDir);
+    electronMock.app.isPackaged = false;
     vi.mocked(shell.openPath).mockClear().mockResolvedValue('');
 
     registerAboutHandlers(ctx, license);
@@ -90,6 +102,7 @@ describe('about.ipc', () => {
   afterEach(() => {
     cleanup();
     fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(appRootDir, { recursive: true, force: true });
   });
 
   async function invoke<T>(channel: string, payload?: unknown): Promise<IpcResult<T>> {
@@ -258,6 +271,114 @@ describe('about.ipc', () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toContain('nu am gasit folderul');
+    });
+  });
+
+  describe('about:thirdPartyLicenses', () => {
+    const thirdPartyFile = () => path.join(appRootDir, 'THIRD-PARTY-LICENSES.txt');
+
+    function writeFixture(): void {
+      const content =
+        'Antet explicativ, ignorat de parser.\n' +
+        '\n<<<TONIK-THIRD-PARTY-PACKAGE>>>\n' +
+        'Pachet: zod@4.4.3\n' +
+        'Licență: MIT\n' +
+        'Copyright: Copyright (c) Colin McDonnell\n' +
+        '---\n' +
+        'MIT License\n\nText de test pentru zod.\n' +
+        '\n<<<TONIK-THIRD-PARTY-PACKAGE>>>\n' +
+        'Pachet: @mantine/core@9.5.1\n' +
+        'Licență: MIT\n' +
+        'Copyright: Copyright (c) Vitaly Rtishchev\n' +
+        '---\n' +
+        'MIT License\n\nText de test pentru mantine, cu @ în numele pachetului.\n';
+      fs.writeFileSync(thirdPartyFile(), content);
+    }
+
+    it('list: raportează fileFound=false dacă THIRD-PARTY-LICENSES.txt lipsește', async () => {
+      const result = await invoke<{ fileFound: boolean; packages: unknown[] }>(IPC.about.thirdPartyLicenses.list);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.fileFound).toBe(false);
+      expect(result.data.packages).toEqual([]);
+    });
+
+    it('list: citește pachetele din fișier, inclusiv un pachet scoped (@scope/nume)', async () => {
+      writeFixture();
+      const result = await invoke<{
+        fileFound: boolean;
+        packages: { name: string; version: string; license: string; copyright: string }[];
+      }>(IPC.about.thirdPartyLicenses.list);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.fileFound).toBe(true);
+      expect(result.data.packages).toHaveLength(2);
+      expect(result.data.packages[0]).toEqual({
+        name: 'zod',
+        version: '4.4.3',
+        license: 'MIT',
+        copyright: 'Copyright (c) Colin McDonnell',
+      });
+      // Numele scoped conține propriul „@” — trebuie separat corect de versiune.
+      expect(result.data.packages[1]).toEqual({
+        name: '@mantine/core',
+        version: '9.5.1',
+        license: 'MIT',
+        copyright: 'Copyright (c) Vitaly Rtishchev',
+      });
+    });
+
+    it('getText: întoarce textul integral pentru un pachet existent', async () => {
+      writeFixture();
+      const result = await invoke<{ found: boolean; text: string }>(IPC.about.thirdPartyLicenses.getText, {
+        name: '@mantine/core',
+        version: '9.5.1',
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.found).toBe(true);
+      expect(result.data.text).toContain('Text de test pentru mantine');
+    });
+
+    it('getText: found=false pentru un pachet necunoscut sau dacă fișierul lipsește', async () => {
+      writeFixture();
+      const necunoscut = await invoke<{ found: boolean; text: string }>(IPC.about.thirdPartyLicenses.getText, {
+        name: 'nu-exista',
+        version: '1.0.0',
+      });
+      expect(necunoscut.ok).toBe(true);
+      if (necunoscut.ok) {
+        expect(necunoscut.data.found).toBe(false);
+        expect(necunoscut.data.text).toBe('');
+      }
+
+      fs.rmSync(thirdPartyFile());
+      const faraFisier = await invoke<{ found: boolean; text: string }>(IPC.about.thirdPartyLicenses.getText, {
+        name: 'zod',
+        version: '4.4.3',
+      });
+      expect(faraFisier.ok).toBe(true);
+      if (faraFisier.ok) expect(faraFisier.data.found).toBe(false);
+    });
+
+    it('getText: respinge un payload invalid (fără nume/versiune)', async () => {
+      const result = await invoke(IPC.about.thirdPartyLicenses.getText, { name: '' });
+      expect(result.ok).toBe(false);
+    });
+
+    it('openFile: deschide fișierul prin shell.openPath dacă există', async () => {
+      writeFixture();
+      const result = await invoke(IPC.about.thirdPartyLicenses.openFile);
+      expect(result.ok).toBe(true);
+      expect(shell.openPath).toHaveBeenCalledWith(thirdPartyFile());
+    });
+
+    it('openFile: eroare clară dacă fișierul nu există', async () => {
+      const result = await invoke(IPC.about.thirdPartyLicenses.openFile);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('THIRD-PARTY-LICENSES.txt');
+      expect(shell.openPath).not.toHaveBeenCalled();
     });
   });
 
