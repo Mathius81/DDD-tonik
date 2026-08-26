@@ -95,6 +95,11 @@ export const IPC = {
     resetReportGuard: 'about:resetReportGuard',
     openLogsFolder: 'about:openLogsFolder',
     openBackupsFolder: 'about:openBackupsFolder',
+    /** Poarta cu parolă a meniului secret — verificarea se face exclusiv în main. */
+    secretMenuStatus: 'about:secretMenuStatus',
+    secretMenuSetPassword: 'about:secretMenuSetPassword',
+    secretMenuVerifyPassword: 'about:secretMenuVerifyPassword',
+    secretMenuChangePassword: 'about:secretMenuChangePassword',
   },
   /** Spațiul de lucru Covoare (spălare covoare) — date izolate de DDD. */
   carpets: {

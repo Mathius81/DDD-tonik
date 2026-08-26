@@ -95,6 +95,10 @@ const api = {
     resetReportGuard: invoke(IPC.about.resetReportGuard),
     openLogsFolder: invoke(IPC.about.openLogsFolder),
     openBackupsFolder: invoke(IPC.about.openBackupsFolder),
+    secretMenuStatus: invoke(IPC.about.secretMenuStatus),
+    secretMenuSetPassword: invoke(IPC.about.secretMenuSetPassword),
+    secretMenuVerifyPassword: invoke(IPC.about.secretMenuVerifyPassword),
+    secretMenuChangePassword: invoke(IPC.about.secretMenuChangePassword),
   },
   carpets: {
     clients: {

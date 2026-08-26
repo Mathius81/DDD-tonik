@@ -7,13 +7,13 @@
  * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
  * sau distribuirea fără acordul scris al autorului sunt interzise.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Stack, Group, Switch, SegmentedControl, Text } from '@mantine/core';
 import { IconAdjustments, IconInfoCircle } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { runMutation, useIpcQuery } from '../../api/useIpc';
 import { SectionCard } from '../../components/SectionCard';
-import { SECRET_MENU_EVENT } from '../../components/SemnaturaAutor';
+import { SECRET_MENU_EVENT, SECRET_MENU_CANCELLED_EVENT } from '../../components/SemnaturaAutor';
 import {
   applyAppearance,
   getThemePref,
@@ -42,6 +42,17 @@ function useContorSecret() {
   const [indiciu, setIndiciu] = useState<string | null>(null);
   const numarClickuri = useRef(0);
   const ultimulClick = useRef(0);
+
+  // Dacă utilizatorul închide poarta cu parolă fără să o completeze corect,
+  // contorul se resetează — trebuie iar cele 10 click-uri de la zero.
+  useEffect(() => {
+    const reseteaza = () => {
+      numarClickuri.current = 0;
+      setIndiciu(null);
+    };
+    window.addEventListener(SECRET_MENU_CANCELLED_EVENT, reseteaza);
+    return () => window.removeEventListener(SECRET_MENU_CANCELLED_EVENT, reseteaza);
+  }, []);
 
   const inregistreazaClick = () => {
     const acum = Date.now();

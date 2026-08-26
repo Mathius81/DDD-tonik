@@ -43,7 +43,12 @@ import { saveIntervention } from '../../src/main/domain/followup-engine';
 import { defaultReminderRules } from '../../src/shared/schemas/reminder';
 import { IPC } from '../../src/shared/ipc-contract';
 import type { IpcResult } from '../../src/shared/ipc-contract';
-import type { AboutDiagnostics, AboutStats } from '../../src/shared/schemas/about';
+import type {
+  AboutDiagnostics,
+  AboutSecretMenuStatus,
+  AboutSecretMenuVerifyResult,
+  AboutStats,
+} from '../../src/shared/schemas/about';
 
 const silentLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never;
 
@@ -265,6 +270,210 @@ describe('about.ipc', () => {
       if (!result.ok) return;
       expect(result.data.version).toBe('1.2.3');
       expect(result.data.associations).toBe(1);
+    });
+  });
+
+  describe('meniul secret — poarta cu parolă', () => {
+    it('la instalare nouă nu există încă o parolă setată', async () => {
+      const status = await invoke<AboutSecretMenuStatus>(IPC.about.secretMenuStatus);
+      expect(status.ok).toBe(true);
+      if (!status.ok) return;
+      expect(status.data.hasPassword).toBe(false);
+      expect(status.data.lockedUntil).toBeNull();
+    });
+
+    it('setează parola prima dată — status.hasPassword devine true', async () => {
+      const set = await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-buna' });
+      expect(set.ok).toBe(true);
+
+      const status = await invoke<AboutSecretMenuStatus>(IPC.about.secretMenuStatus);
+      expect(status.ok).toBe(true);
+      if (!status.ok) return;
+      expect(status.data.hasPassword).toBe(true);
+    });
+
+    it('nu permite setarea parolei a doua oară (trebuie schimbată, nu resetată)', async () => {
+      await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-buna' });
+      const second = await invoke(IPC.about.secretMenuSetPassword, { password: 'alta-parola' });
+      expect(second.ok).toBe(false);
+    });
+
+    it('hash-ul stocat NU este parola în clar', async () => {
+      await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-buna' });
+      const salt = ctx.settings.getRaw('secret_menu_password_salt');
+      const hash = ctx.settings.getRaw('secret_menu_password_hash');
+      expect(salt).toBeDefined();
+      expect(hash).toBeDefined();
+      expect(hash).not.toBe('parola-buna');
+      expect(hash).not.toContain('parola-buna');
+    });
+
+    it('sarea diferă între două setări ale aceleiași parole (instanțe independente)', async () => {
+      await invoke(IPC.about.secretMenuSetPassword, { password: 'aceeasi-parola' });
+      const salt1 = ctx.settings.getRaw('secret_menu_password_salt');
+      const hash1 = ctx.settings.getRaw('secret_menu_password_hash');
+
+      // A doua instanță, complet independentă — bază de date proprie.
+      const t2 = createTestDb();
+      const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'ddd-about-2-'));
+      const paths2: AppPaths = {
+        dataDir: dir2,
+        backupsDir: path.join(dir2, 'backups'),
+        logsDir: path.join(dir2, 'logs'),
+        dbFile: path.join(dir2, 'data', 'ddd-manager.sqlite'),
+      };
+      fs.mkdirSync(paths2.backupsDir, { recursive: true });
+      fs.mkdirSync(paths2.logsDir, { recursive: true });
+      const ctx2 = new AppContext(t2.db, paths2, silentLogger, () => null, () => new Date('2026-08-20T09:00:00'));
+      const license2 = new LicenseService(ctx2.settings, silentLogger, ctx2.now);
+      // Suprascrie handlerele mock cu cele ale ctx2, pentru acest apel.
+      registerAboutHandlers(ctx2, license2);
+
+      try {
+        const set2 = await invoke(IPC.about.secretMenuSetPassword, { password: 'aceeasi-parola' });
+        expect(set2.ok).toBe(true);
+        const salt2 = ctx2.settings.getRaw('secret_menu_password_salt');
+        const hash2 = ctx2.settings.getRaw('secret_menu_password_hash');
+
+        expect(salt1).not.toBe(salt2);
+        expect(hash1).not.toBe(hash2);
+      } finally {
+        t2.cleanup();
+        fs.rmSync(dir2, { recursive: true, force: true });
+      }
+    });
+
+    it('verifică cu succes parola corectă', async () => {
+      await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-buna' });
+      const rez = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+        password: 'parola-buna',
+      });
+      expect(rez.ok).toBe(true);
+      if (!rez.ok) return;
+      expect(rez.data.success).toBe(true);
+      expect(rez.data.lockedUntil).toBeNull();
+    });
+
+    it('respinge o parolă greșită, fără să blocheze imediat', async () => {
+      await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-buna' });
+      const rez = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+        password: 'gresita',
+      });
+      expect(rez.ok).toBe(true);
+      if (!rez.ok) return;
+      expect(rez.data.success).toBe(false);
+      expect(rez.data.lockedUntil).toBeNull();
+      expect(rez.data.attemptsLeft).toBe(4);
+    });
+
+    it('blochează ecranul de parolă după 5 încercări greșite consecutive', async () => {
+      await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-buna' });
+
+      let ultim: IpcResult<AboutSecretMenuVerifyResult> | null = null;
+      for (let i = 0; i < 5; i += 1) {
+        ultim = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+          password: 'gresita',
+        });
+      }
+      expect(ultim?.ok).toBe(true);
+      if (!ultim || !ultim.ok) return;
+      expect(ultim.data.success).toBe(false);
+      expect(ultim.data.lockedUntil).not.toBeNull();
+
+      // Chiar cu parola corectă, cât timp e blocat, verificarea eșuează.
+      const cuParolaCorecta = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+        password: 'parola-buna',
+      });
+      expect(cuParolaCorecta.ok).toBe(true);
+      if (!cuParolaCorecta.ok) return;
+      expect(cuParolaCorecta.data.success).toBe(false);
+      expect(cuParolaCorecta.data.lockedUntil).not.toBeNull();
+    });
+
+    it('deblochează automat după expirarea celor 60 de secunde', async () => {
+      await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-buna' });
+      for (let i = 0; i < 5; i += 1) {
+        await invoke(IPC.about.secretMenuVerifyPassword, { password: 'gresita' });
+      }
+      const status = await invoke<AboutSecretMenuStatus>(IPC.about.secretMenuStatus);
+      expect(status.ok).toBe(true);
+      if (!status.ok) return;
+      expect(status.data.lockedUntil).not.toBeNull();
+
+      const acumSpy = vi.spyOn(Date, 'now').mockReturnValue((status.data.lockedUntil as number) + 1_000);
+      try {
+        const rez = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+          password: 'parola-buna',
+        });
+        expect(rez.ok).toBe(true);
+        if (!rez.ok) return;
+        expect(rez.data.success).toBe(true);
+      } finally {
+        acumSpy.mockRestore();
+      }
+    });
+
+    it('resetează contorul de încercări greșite la o introducere corectă', async () => {
+      await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-buna' });
+      await invoke(IPC.about.secretMenuVerifyPassword, { password: 'gresita' });
+      await invoke(IPC.about.secretMenuVerifyPassword, { password: 'gresita' });
+
+      const corect = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+        password: 'parola-buna',
+      });
+      expect(corect.ok).toBe(true);
+      if (!corect.ok) return;
+      expect(corect.data.success).toBe(true);
+
+      // După succes, contorul a fost resetat — mai sunt nevoie de 5 greșeli noi pentru blocaj.
+      for (let i = 0; i < 4; i += 1) {
+        const r = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+          password: 'gresita',
+        });
+        expect(r.ok).toBe(true);
+        if (!r.ok) continue;
+        expect(r.data.lockedUntil).toBeNull();
+      }
+    });
+
+    describe('schimbarea parolei', () => {
+      it('schimbă parola cu succes când parola veche este corectă', async () => {
+        await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-veche' });
+
+        const schimbare = await invoke(IPC.about.secretMenuChangePassword, {
+          oldPassword: 'parola-veche',
+          newPassword: 'parola-noua',
+        });
+        expect(schimbare.ok).toBe(true);
+
+        const verifVeche = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+          password: 'parola-veche',
+        });
+        expect(verifVeche.ok).toBe(true);
+        if (verifVeche.ok) expect(verifVeche.data.success).toBe(false);
+
+        const verifNoua = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+          password: 'parola-noua',
+        });
+        expect(verifNoua.ok).toBe(true);
+        if (verifNoua.ok) expect(verifNoua.data.success).toBe(true);
+      });
+
+      it('respinge schimbarea dacă parola veche este greșită — parola rămâne neschimbată', async () => {
+        await invoke(IPC.about.secretMenuSetPassword, { password: 'parola-veche' });
+
+        const schimbare = await invoke(IPC.about.secretMenuChangePassword, {
+          oldPassword: 'gresita',
+          newPassword: 'parola-noua',
+        });
+        expect(schimbare.ok).toBe(false);
+
+        const verifVeche = await invoke<AboutSecretMenuVerifyResult>(IPC.about.secretMenuVerifyPassword, {
+          password: 'parola-veche',
+        });
+        expect(verifVeche.ok).toBe(true);
+        if (verifVeche.ok) expect(verifVeche.data.success).toBe(true);
+      });
     });
   });
 });

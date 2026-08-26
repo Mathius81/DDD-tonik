@@ -96,3 +96,43 @@ export interface AboutStats {
 /** Resetează marcajul „trimis azi” al unui raport zilnic — consola de service. */
 export const resetReportGuardSchema = z.object({ report: z.enum(reportIds) });
 export type ResetReportGuardInput = z.infer<typeof resetReportGuardSchema>;
+
+/**
+ * Poarta cu parolă a meniului secret — vezi `about.ipc.ts` pentru verificare
+ * (scrypt + timingSafeEqual, exclusiv în main; hash-ul și sarea nu ajung
+ * niciodată în renderer).
+ */
+export interface AboutSecretMenuStatus {
+  /** Dacă parola a fost deja setată. Altfel, ecranul cere SETAREA ei, nu introducerea. */
+  hasPassword: boolean;
+  /** `Date.now()` până la care ecranul e blocat (prea multe încercări greșite), sau null. */
+  lockedUntil: number | null;
+}
+
+/** Rezultatul unei încercări de deblocare a meniului secret. */
+export interface AboutSecretMenuVerifyResult {
+  success: boolean;
+  /** Setat doar dacă această încercare a declanșat blocajul de 60 de secunde. */
+  lockedUntil: number | null;
+  /** Câte încercări mai sunt disponibile înainte de blocaj (informativ). */
+  attemptsLeft: number;
+}
+
+/** Setează parola meniului secret — permis o singură dată, cât timp nu există deja una. */
+export const secretMenuSetPasswordSchema = z.object({
+  password: z.string().min(4).max(200),
+});
+export type SecretMenuSetPasswordInput = z.infer<typeof secretMenuSetPasswordSchema>;
+
+/** Verifică parola meniului secret la fiecare deschidere. */
+export const secretMenuVerifyPasswordSchema = z.object({
+  password: z.string().min(1).max(200),
+});
+export type SecretMenuVerifyPasswordInput = z.infer<typeof secretMenuVerifyPasswordSchema>;
+
+/** Schimbă parola meniului secret — cere parola veche corectă + una nouă. */
+export const secretMenuChangePasswordSchema = z.object({
+  oldPassword: z.string().min(1).max(200),
+  newPassword: z.string().min(4).max(200),
+});
+export type SecretMenuChangePasswordInput = z.infer<typeof secretMenuChangePasswordSchema>;

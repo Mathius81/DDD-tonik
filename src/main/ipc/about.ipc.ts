@@ -9,6 +9,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { app, shell } from 'electron';
 import { handle, UserFacingError } from './register';
 import { IPC } from '../../shared/ipc-contract';
@@ -21,12 +22,45 @@ import type {
   AboutInfo,
   AboutLicenseSummary,
   AboutMonthlyPeak,
+  AboutSecretMenuStatus,
+  AboutSecretMenuVerifyResult,
   AboutStats,
   AboutTableCounts,
   AboutTopAssociation,
 } from '../../shared/schemas/about';
-import { resetReportGuardSchema } from '../../shared/schemas/about';
+import {
+  resetReportGuardSchema,
+  secretMenuChangePasswordSchema,
+  secretMenuSetPasswordSchema,
+  secretMenuVerifyPasswordSchema,
+} from '../../shared/schemas/about';
 import { AUTHOR_NAME, AUTHOR_EMAIL, COPYRIGHT_YEAR } from '../../shared/authorship';
+
+/**
+ * Parola meniului secret — stocată prin `settings.setRaw`, ca la licență, NU
+ * în `settingsSchema` (nu are voie să circule prin IPC-ul normal de setări).
+ * Sare aleatoare per parolă + hash `scrypt`; comparația la verificare se face
+ * cu `timingSafeEqual`. Hash-ul și sarea nu părăsesc niciodată acest fișier.
+ */
+const SECRET_MENU_SALT_KEY = 'secret_menu_password_salt';
+const SECRET_MENU_HASH_KEY = 'secret_menu_password_hash';
+const SECRET_MENU_KEYLEN = 64;
+const SECRET_MENU_MAX_ATTEMPTS = 5;
+const SECRET_MENU_LOCKOUT_MS = 60_000;
+
+function hashSecretMenuPassword(password: string): { salt: string; hash: string } {
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, SECRET_MENU_KEYLEN).toString('hex');
+  return { salt, hash };
+}
+
+/** Compară parola introdusă cu hash-ul stocat, în timp constant. */
+function verifySecretMenuPassword(password: string, salt: string, expectedHashHex: string): boolean {
+  const candidate = scryptSync(password, salt, SECRET_MENU_KEYLEN);
+  const expected = Buffer.from(expectedHashHex, 'hex');
+  if (candidate.length !== expected.length) return false;
+  return timingSafeEqual(candidate, expected);
+}
 
 /** Prima pornire înregistrată + numărul de porniri, ținute în `settings`. */
 const FIRST_RUN_KEY = 'first_run_date';
@@ -235,5 +269,115 @@ export function registerAboutHandlers(ctx: AppContext, license: LicenseService):
     const err = await shell.openPath(resolveBackupDir(ctx));
     if (err) throw new UserFacingError(`Nu am putut deschide folderul de backup-uri: ${err}`);
     return { opened: true };
+  });
+
+  // --- Poarta cu parolă a meniului secret --------------------------------
+  // Stare doar în memorie (nu trebuie persistată) — trăiește cât aplicația e
+  // pornită, într-o închidere proprie acestei înregistrări de handlere.
+  let failedAttempts = 0;
+  let lockedUntil: number | null = null;
+
+  /** Milisecunde rămase din blocaj; resetează contorul când blocajul a expirat. */
+  const lockRemainingMs = (): number => {
+    if (lockedUntil === null) return 0;
+    const remaining = lockedUntil - Date.now();
+    if (remaining <= 0) {
+      lockedUntil = null;
+      failedAttempts = 0;
+      return 0;
+    }
+    return remaining;
+  };
+
+  /** Înregistrează o încercare greșită; blochează ecranul după prea multe. */
+  const registerFailedAttempt = (): number | null => {
+    failedAttempts += 1;
+    if (failedAttempts >= SECRET_MENU_MAX_ATTEMPTS) {
+      lockedUntil = Date.now() + SECRET_MENU_LOCKOUT_MS;
+      return lockedUntil;
+    }
+    return null;
+  };
+
+  const clearFailedAttempts = (): void => {
+    failedAttempts = 0;
+    lockedUntil = null;
+  };
+
+  handle(IPC.about.secretMenuStatus, null, (): AboutSecretMenuStatus => {
+    const remaining = lockRemainingMs();
+    return {
+      hasPassword: Boolean(ctx.settings.getRaw(SECRET_MENU_HASH_KEY)),
+      lockedUntil: remaining > 0 ? Date.now() + remaining : null,
+    };
+  });
+
+  // Setarea parolei e permisă o singură dată — după aceea se folosește
+  // `secretMenuChangePassword`, care cere parola veche.
+  handle(IPC.about.secretMenuSetPassword, secretMenuSetPasswordSchema, ({ password }) => {
+    if (ctx.settings.getRaw(SECRET_MENU_HASH_KEY)) {
+      throw new UserFacingError('Parola este deja setată — folosește schimbarea parolei.');
+    }
+    const { salt, hash } = hashSecretMenuPassword(password);
+    ctx.settings.setRaw(SECRET_MENU_SALT_KEY, salt);
+    ctx.settings.setRaw(SECRET_MENU_HASH_KEY, hash);
+    ctx.logger.info('Parola meniului secret a fost setată.');
+    return { success: true };
+  });
+
+  handle(
+    IPC.about.secretMenuVerifyPassword,
+    secretMenuVerifyPasswordSchema,
+    ({ password }): AboutSecretMenuVerifyResult => {
+      const remaining = lockRemainingMs();
+      if (remaining > 0) {
+        return { success: false, lockedUntil: Date.now() + remaining, attemptsLeft: 0 };
+      }
+
+      const salt = ctx.settings.getRaw(SECRET_MENU_SALT_KEY);
+      const hash = ctx.settings.getRaw(SECRET_MENU_HASH_KEY);
+      if (!salt || !hash) {
+        throw new UserFacingError('Parola meniului secret nu a fost încă setată.');
+      }
+
+      if (verifySecretMenuPassword(password, salt, hash)) {
+        clearFailedAttempts();
+        return { success: true, lockedUntil: null, attemptsLeft: SECRET_MENU_MAX_ATTEMPTS };
+      }
+
+      const lockedNow = registerFailedAttempt();
+      return {
+        success: false,
+        lockedUntil: lockedNow,
+        attemptsLeft: Math.max(0, SECRET_MENU_MAX_ATTEMPTS - failedAttempts),
+      };
+    },
+  );
+
+  handle(IPC.about.secretMenuChangePassword, secretMenuChangePasswordSchema, ({ oldPassword, newPassword }) => {
+    const remaining = lockRemainingMs();
+    if (remaining > 0) {
+      throw new UserFacingError(
+        `Prea multe încercări. Încearcă din nou peste ${Math.ceil(remaining / 1000)} secunde.`,
+      );
+    }
+
+    const salt = ctx.settings.getRaw(SECRET_MENU_SALT_KEY);
+    const hash = ctx.settings.getRaw(SECRET_MENU_HASH_KEY);
+    if (!salt || !hash) {
+      throw new UserFacingError('Parola meniului secret nu a fost încă setată.');
+    }
+
+    if (!verifySecretMenuPassword(oldPassword, salt, hash)) {
+      registerFailedAttempt();
+      throw new UserFacingError('Parola veche este greșită.');
+    }
+
+    clearFailedAttempts();
+    const { salt: newSalt, hash: newHash } = hashSecretMenuPassword(newPassword);
+    ctx.settings.setRaw(SECRET_MENU_SALT_KEY, newSalt);
+    ctx.settings.setRaw(SECRET_MENU_HASH_KEY, newHash);
+    ctx.logger.info('Parola meniului secret a fost schimbată.');
+    return { success: true };
   });
 }
