@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import type { BrowserWindow } from 'electron';
 import { Db } from './db/database';
 import { AssociationRepository } from './db/repos/associations.repo';
@@ -10,9 +19,15 @@ import { MessageRepository } from './db/repos/messages.repo';
 import { SettingsRepository } from './db/repos/settings.repo';
 import { CarpetClientRepository } from './db/repos/carpet-clients.repo';
 import { CarpetOrderRepository } from './db/repos/carpet-orders.repo';
+import { CarpetSettingsRepository } from './db/repos/carpet-settings.repo';
+import { CarpetMessageRepository } from './db/repos/carpet-messages.repo';
 import { TyreClientRepository } from './db/repos/tyre-clients.repo';
 import { TyreVehicleRepository } from './db/repos/tyre-vehicles.repo';
 import { TyreStorageRepository } from './db/repos/tyre-storage.repo';
+import { TyreAppointmentRepository } from './db/repos/tyre-appointments.repo';
+import { TyreSwapRepository } from './db/repos/tyre-swaps.repo';
+import { TyreMessageLogRepository } from './db/repos/tyre-message-log.repo';
+import { TyreSeasonReminderRepository } from './db/repos/tyre-season-reminders.repo';
 import type { AppPaths } from './paths';
 import type { Logger } from './logger';
 import { todayIso } from '../shared/dates';
@@ -30,10 +45,16 @@ export class AppContext {
   /** Spațiul de lucru Covoare — date complet separate de DDD. */
   readonly carpetClients: CarpetClientRepository;
   readonly carpetOrders: CarpetOrderRepository;
+  readonly carpetSettings: CarpetSettingsRepository;
+  readonly carpetMessages: CarpetMessageRepository;
   /** Spațiul de lucru Cauciucuri — date complet separate de DDD/Covoare. */
   readonly tyreClients: TyreClientRepository;
   readonly tyreVehicles: TyreVehicleRepository;
   readonly tyreStorage: TyreStorageRepository;
+  readonly tyreAppointments: TyreAppointmentRepository;
+  readonly tyreSwaps: TyreSwapRepository;
+  readonly tyreMessageLog: TyreMessageLogRepository;
+  readonly tyreSeasonReminders: TyreSeasonReminderRepository;
 
   constructor(
     public db: Db,
@@ -52,9 +73,15 @@ export class AppContext {
     this.settings = new SettingsRepository(db);
     this.carpetClients = new CarpetClientRepository(db);
     this.carpetOrders = new CarpetOrderRepository(db);
+    this.carpetSettings = new CarpetSettingsRepository(db);
+    this.carpetMessages = new CarpetMessageRepository(db);
     this.tyreClients = new TyreClientRepository(db);
     this.tyreVehicles = new TyreVehicleRepository(db);
     this.tyreStorage = new TyreStorageRepository(db);
+    this.tyreAppointments = new TyreAppointmentRepository(db);
+    this.tyreSwaps = new TyreSwapRepository(db);
+    this.tyreMessageLog = new TyreMessageLogRepository(db);
+    this.tyreSeasonReminders = new TyreSeasonReminderRepository(db);
   }
 
   todayIso(): string {

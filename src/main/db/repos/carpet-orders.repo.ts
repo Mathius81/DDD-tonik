@@ -1,14 +1,25 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import type { Db } from '../database';
-import type {
-  CarpetOrder,
-  CarpetOrderCreate,
-  CarpetOrderItem,
-  CarpetOrderItemInput,
-  CarpetOrderListFilter,
-  CarpetOrderListItem,
-  CarpetOrderStatus,
-  CarpetOrderUpdate,
-  CarpetOrderWithItems,
+import {
+  normalizePhoneRo,
+  type CarpetCalendarDayEntry,
+  type CarpetOrder,
+  type CarpetOrderCreate,
+  type CarpetOrderItem,
+  type CarpetOrderItemInput,
+  type CarpetOrderListFilter,
+  type CarpetOrderListItem,
+  type CarpetOrderStatus,
+  type CarpetOrderUpdate,
+  type CarpetOrderWithItems,
 } from '../../../shared/schemas/carpet';
 import type { Paginated } from '../../../shared/schemas/common';
 import { unaccentRo as unaccent } from '../../../shared/text';
@@ -64,9 +75,14 @@ export class CarpetOrderRepository {
       params.push(filter.status);
     }
     if (filter.search) {
-      where.push('(unaccent_ro(c.name) LIKE ? OR c.phone LIKE ?)');
+      // Telefonul e cheia principală de căutare — comparăm și pe forma normalizată, ca la
+      // clienți, ca să funcționeze indiferent de formatul introdus (0722.../ +40722...).
+      const normalizedTerm = normalizePhoneRo(filter.search);
+      where.push(`(
+        unaccent_ro(c.name) LIKE ? OR c.phone LIKE ? OR (? != '' AND c.phone_normalized LIKE ?)
+      )`);
       const term = `%${unaccent(filter.search)}%`;
-      params.push(term, `%${filter.search}%`);
+      params.push(term, `%${filter.search}%`, normalizedTerm, `%${normalizedTerm}%`);
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -121,6 +137,47 @@ export class CarpetOrderRepository {
     return rows.map((r) => ({ ...r, total_price: totalPrice(r.price_per_sqm, r.total_sqm) }));
   }
 
+  /** Intrări de calendar pentru o lună (preluări + termene) — pentru pagina Calendar Covoare. */
+  calendarMonth(month: string): CarpetCalendarDayEntry[] {
+    const like = `${month}-%`;
+    const rows = this.db.all<{
+      id: number;
+      client_name: string;
+      status: CarpetOrderStatus;
+      pickup_date: string;
+      due_date: string | null;
+    }>(
+      `SELECT o.id, c.name AS client_name, o.status, o.pickup_date, o.due_date
+       FROM carpet_orders o
+       JOIN carpet_clients c ON c.id = o.client_id
+       WHERE o.pickup_date LIKE ? OR o.due_date LIKE ?`,
+      like,
+      like,
+    );
+    const entries: CarpetCalendarDayEntry[] = [];
+    for (const r of rows) {
+      if (r.pickup_date.startsWith(month)) {
+        entries.push({
+          date: r.pickup_date,
+          kind: 'pickup',
+          order_id: r.id,
+          client_name: r.client_name,
+          status: r.status,
+        });
+      }
+      if (r.due_date && r.due_date.startsWith(month)) {
+        entries.push({
+          date: r.due_date,
+          kind: 'due',
+          order_id: r.id,
+          client_name: r.client_name,
+          status: r.status,
+        });
+      }
+    }
+    return entries;
+  }
+
   countsForDashboard(todayIso: string): {
     in_lucru: number;
     gata: number;
@@ -154,12 +211,31 @@ export class CarpetOrderRepository {
     }
   }
 
+  /**
+   * Creare comandă — dacă nu vine `client_id`, clientul e creat automat, în ACEEAȘI tranzacție,
+   * din `client_name`/`client_phone`/`client_address`/`client_notes` (formular unic, de la
+   * tejghea). Același tipar ca la mașini, vezi `tyre-vehicles.repo.ts::create()`.
+   */
   create(data: CarpetOrderCreate): CarpetOrderWithItems {
     return this.db.transaction(() => {
+      let clientId = data.client_id;
+      if (!clientId) {
+        const phone = data.client_phone;
+        const clientResult = this.db.run(
+          `INSERT INTO carpet_clients (name, phone, phone_normalized, address, notes) VALUES (?, ?, ?, ?, ?)`,
+          data.client_name,
+          phone,
+          phone ? normalizePhoneRo(phone) || null : null,
+          data.client_address,
+          data.client_notes,
+        );
+        clientId = Number(clientResult.lastInsertRowid);
+      }
+
       const result = this.db.run(
         `INSERT INTO carpet_orders (client_id, pickup_date, due_date, status, price_per_sqm, notes)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        data.client_id,
+        clientId,
         data.pickup_date,
         data.due_date,
         data.status,

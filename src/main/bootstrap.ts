@@ -1,13 +1,24 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import type { BrowserWindow } from 'electron';
 import { Db } from './db/database';
 import { runMigrations, currentSchemaVersion } from './db/migrations';
 import { registerAllIpcHandlers } from './ipc';
+import { recordAppRun } from './ipc/about.ipc';
 import { AppContext } from './app-context';
 import { SecretsService } from './services/secrets.service';
 import { MessagingService } from './services/messaging/messaging.service';
 import { NotificationService } from './services/notification.service';
 import { SchedulerService } from './services/scheduler.service';
 import { DailyDigestService } from './services/daily-digest.service';
+import { TyreSeasonReminderService } from './services/tyre-season-reminder.service';
 import { BackupService } from './services/backup.service';
 import { StartupService } from './services/startup.service';
 import { LicenseService } from './services/license.service';
@@ -58,7 +69,15 @@ export async function bootstrap(boot: BootstrapContext): Promise<BootstrapResult
   const messaging = new MessagingService(ctx, secrets);
   const notifications = new NotificationService(ctx);
   const digest = new DailyDigestService(ctx, messaging, notifications);
-  const scheduler = new SchedulerService(ctx, notifications, messaging, digest, license);
+  const tyreSeasonReminder = new TyreSeasonReminderService(ctx);
+  const scheduler = new SchedulerService(
+    ctx,
+    notifications,
+    messaging,
+    digest,
+    license,
+    tyreSeasonReminder,
+  );
   const startup = new StartupService(boot.logger);
 
   registerAllIpcHandlers(ctx, {
@@ -73,6 +92,10 @@ export async function bootstrap(boot: BootstrapContext): Promise<BootstrapResult
       rebindRepositories(ctx, newDb);
     },
   });
+
+  // Ține minte prima pornire și numărul de porniri — alimentează ecranul „Despre”
+  // și bilanțul personal din semnătura autorului.
+  recordAppRun(ctx);
 
   // Backup automat zilnic la prima pornire din zi.
   backups.autoBackupIfNeeded().catch((err) => boot.logger.error('Backup automat eșuat', err));

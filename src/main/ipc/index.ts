@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import type { AppContext } from '../app-context';
 import type { MessagingService } from '../services/messaging/messaging.service';
 import type { DailyDigestService } from '../services/daily-digest.service';
@@ -20,6 +29,7 @@ import { registerBackupHandlers } from './backup.ipc';
 import { registerLicenseHandlers } from './license.ipc';
 import { registerCarpetHandlers } from './carpets.ipc';
 import { registerTyreHandlers } from './tyres.ipc';
+import { registerAboutHandlers } from './about.ipc';
 
 export interface IpcDependencies {
   messaging: MessagingService;
@@ -46,4 +56,5 @@ export function registerAllIpcHandlers(ctx: AppContext, deps: IpcDependencies): 
   registerLicenseHandlers(ctx, deps.license);
   registerCarpetHandlers(ctx);
   registerTyreHandlers(ctx);
+  registerAboutHandlers(ctx, deps.license);
 }

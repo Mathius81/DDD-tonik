@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import type { AppContext } from '../app-context';
 import type { NotificationService } from './notification.service';
 import type { MessagingService } from './messaging/messaging.service';
@@ -6,6 +15,7 @@ import type { LicenseService } from './license.service';
 import { formatRo } from '../../shared/dates';
 import { renderEmailHtml, textToHtml, logoAttachment } from './messaging/email-template';
 import { normalizePhoneE164 } from './messaging/template-render';
+import type { TyreSeasonReminderService } from './tyre-season-reminder.service';
 import type { Reminder } from '../../shared/schemas/reminder';
 
 const TICK_INTERVAL_MS = 10 * 60 * 1000; // 10 minute (spec #19)
@@ -26,6 +36,7 @@ export class SchedulerService {
     private messaging: MessagingService,
     private digest?: DailyDigestService,
     private license?: LicenseService,
+    private tyreSeasonReminder?: TyreSeasonReminderService,
   ) {}
 
   start(): void {
@@ -65,6 +76,10 @@ export class SchedulerService {
 
       // Raportul zilnic „planul zilei” — își verifică singur ora și ziua.
       await this.digest?.tick();
+
+      // Reminderele de sezon la cauciucuri — își verifică singure fereastra de
+      // sezon și garda „un mesaj per client per fereastră”.
+      await this.tyreSeasonReminder?.tick(this.messaging, this.notifications);
 
       const now = this.ctx.nowLocalIso();
       const today = this.ctx.todayIso();

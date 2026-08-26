@@ -1,4 +1,13 @@
 /**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
+/**
  * Contractul IPC: fiecare canal are un nume unic.
  * Main validează payload-ul cu schema zod corespunzătoare înainte de execuție.
  */
@@ -75,6 +84,18 @@ export const IPC = {
     check: 'license:check',
     activate: 'license:activate',
   },
+  /** Date de autor + statistici personale („Despre” și meniul secret al autorului). */
+  about: {
+    get: 'about:get',
+    /** Ce ar întreba un telefon de suport — tab „Diagnostic”. */
+    diagnostics: 'about:diagnostics',
+    /** Bilanțul personal al utilizatorului — tab „Statisticile tale”. */
+    stats: 'about:stats',
+    /** Resetează marcajul „trimis azi” al unui raport, ca să poată fi retrimis azi. */
+    resetReportGuard: 'about:resetReportGuard',
+    openLogsFolder: 'about:openLogsFolder',
+    openBackupsFolder: 'about:openBackupsFolder',
+  },
   /** Spațiul de lucru Covoare (spălare covoare) — date izolate de DDD. */
   carpets: {
     clients: {
@@ -92,6 +113,23 @@ export const IPC = {
     },
     dashboard: {
       get: 'carpets:dashboard:get',
+    },
+    calendar: {
+      month: 'carpets:calendar:month',
+    },
+    settings: {
+      get: 'carpets:settings:get',
+      update: 'carpets:settings:update',
+    },
+    reminders: {
+      get: 'carpets:reminders:get',
+    },
+    messages: {
+      list: 'carpets:messages:list',
+    },
+    /** Mesaj WhatsApp asistat: deschide wa.me cu textul pregătit, ca în DDD/Cauciucuri. */
+    whatsapp: {
+      send: 'carpets:whatsapp:send',
     },
   },
   /** Spațiul de lucru Cauciucuri (vulcanizare + hotel de cauciucuri) — date izolate de DDD/Covoare. */
@@ -122,6 +160,29 @@ export const IPC = {
     /** Mesaj WhatsApp asistat: deschide wa.me cu textul pregătit, ca în DDD. */
     whatsapp: {
       send: 'tyres:whatsapp:send',
+    },
+    appointments: {
+      list: 'tyres:appointments:list',
+      get: 'tyres:appointments:get',
+      create: 'tyres:appointments:create',
+      update: 'tyres:appointments:update',
+      setStatus: 'tyres:appointments:setStatus',
+    },
+    /** Schimb de sezon — mută (atomic) setul montat/demontat din/în depozit. */
+    swaps: {
+      list: 'tyres:swaps:list',
+      get: 'tyres:swaps:get',
+      create: 'tyres:swaps:create',
+    },
+    /** Istoricul mesajelor WhatsApp Cauciucuri (manual + remindere automate de sezon). */
+    messages: {
+      list: 'tyres:messages:list',
+    },
+    /** Remindere automate de sezon — vezi tyre-season-reminder.service.ts. */
+    seasonReminders: {
+      getSettings: 'tyres:seasonReminders:getSettings',
+      saveSettings: 'tyres:seasonReminders:saveSettings',
+      status: 'tyres:seasonReminders:status',
     },
   },
   backup: {

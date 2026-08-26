@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { z } from 'zod';
 import { shell } from 'electron';
 import { subDays } from 'date-fns';
@@ -16,9 +25,19 @@ import {
   tyreStoragePickupSchema,
   tyreStorageReturnSchema,
   tyreWhatsappSendSchema,
+  tyreAppointmentCreateSchema,
+  tyreAppointmentUpdateSchema,
+  tyreAppointmentSetStatusSchema,
+  tyreAppointmentListFilterSchema,
+  tyreSwapCreateSchema,
+  tyreSwapListFilterSchema,
+  tyreMessageLogListFilterSchema,
+  tyreSeasonReminderSettingsSchema,
 } from '../../shared/schemas/tyre';
 import { idSchema, toIsoDate } from '../../shared/schemas/common';
 import { normalizePhoneE164 } from '../services/messaging/template-render';
+import { TyreSwapValidationError } from '../db/repos/tyre-swaps.repo';
+import { TyreSeasonReminderService } from '../services/tyre-season-reminder.service';
 import type { AppContext } from '../app-context';
 
 const RECENT_INTAKE_DAYS = 30;
@@ -28,10 +47,17 @@ const RECENT_INTAKE_DAYS = 30;
  *
  * Butonul de WhatsApp NU folosește MessagingService.send() (care cere un `contact_id` din
  * tabela `contacts` a DDD-ului): deschide direct wa.me, exact ca modul asistat descris în
- * `messaging.service.ts::sendWhatsappAssisted`. Trimiterea se face DOAR la cererea explicită
- * a utilizatorului (niciodată automat) — nu există scheduler/remindere pentru acest spațiu.
+ * `messaging.service.ts::sendWhatsappAssisted`. Trimiterea manuală se face DOAR la cererea
+ * explicită a utilizatorului. Trimiterea AUTOMATĂ există doar pentru remindere-le de sezon
+ * (vezi `tyre-season-reminder.service.ts`) — rulează din scheduler, respectă modul WhatsApp
+ * (asistat/cloud_api) și trimite fiecărui client o singură dată per fereastră.
  */
 export function registerTyreHandlers(ctx: AppContext): void {
+  // Remindere automate de sezon — instanțiat devreme: handler-ul `whatsapp.send` de mai
+  // jos are nevoie de `seasonKeyFor` pentru a eticheta corect trimiterile manuale de tip
+  // „season_reminder" (aceeași cheie de fereastră ca reminder-ele automate).
+  const seasonReminders = new TyreSeasonReminderService(ctx);
+
   // Clienți
   handle(IPC.tyres.clients.list, tyreClientListFilterSchema, (filter) => ctx.tyreClients.list(filter));
 
@@ -145,7 +171,10 @@ export function registerTyreHandlers(ctx: AppContext): void {
   });
 
   // WhatsApp — mod asistat: deschide wa.me cu mesajul pregătit; trimiterea rămâne manuală.
-  handle(IPC.tyres.whatsapp.send, tyreWhatsappSendSchema, async ({ client_id, message }) => {
+  // Folosit atât din fișa clientului (mesaj liber), cât și din pagina Remindere (mesaj de
+  // sezon pregătit) — `source`/`season` doar etichetează rândul din istoric, nu schimbă
+  // comportamentul de trimitere.
+  handle(IPC.tyres.whatsapp.send, tyreWhatsappSendSchema, async ({ client_id, message, source, season }) => {
     const client = ctx.tyreClients.getById(client_id);
     if (!client) throw new UserFacingError('Clientul nu a fost găsit.');
     if (!client.phone) throw new UserFacingError('Clientul nu are număr de telefon.');
@@ -159,20 +188,112 @@ export function registerTyreHandlers(ctx: AppContext): void {
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     await shell.openExternal(url);
 
-    // contact_id/association_id sunt nullable în message_logs (schema DDD) — logăm fără
-    // să încălcăm nicio constrângere de FK, doar cu recipient/canal/preview proprii.
-    ctx.messages.insertLog({
-      association_id: null,
-      contact_id: null,
-      followup_id: null,
-      reminder_id: null,
-      channel: 'whatsapp',
+    ctx.tyreMessageLog.insert({
+      client_id: client.id,
+      source,
+      season,
+      // Aceeași cheie de fereastră ca reminder-ele automate (vezi `seasonKeyFor`) — o
+      // trimitere manuală „season_reminder" trebuie să satisfacă garda anti-spam la fel
+      // ca una automată, altfel clientul ar primi și mesajul automat ulterior.
+      season_key: source === 'season_reminder' && season ? seasonReminders.seasonKeyFor(season) : null,
       recipient: client.phone,
-      template_id: null,
       message_preview: message.slice(0, 500),
       status: 'prepared',
+      created_at: ctx.nowLocalIso(),
     });
     ctx.logger.info(`WhatsApp asistat deschis pentru client cauciucuri #${client.id}`);
     return { opened: true };
   });
+
+  // Programări (dată + oră fixă)
+  handle(IPC.tyres.appointments.list, tyreAppointmentListFilterSchema, (filter) =>
+    ctx.tyreAppointments.list(filter),
+  );
+
+  handle(IPC.tyres.appointments.get, z.object({ id: idSchema }), ({ id }) => {
+    const appointment = ctx.tyreAppointments.getById(id);
+    if (!appointment) throw new UserFacingError('Programarea nu a fost găsită.');
+    return appointment;
+  });
+
+  handle(IPC.tyres.appointments.create, tyreAppointmentCreateSchema, (data) => {
+    const vehicle = ctx.tyreVehicles.getById(data.vehicle_id);
+    if (!vehicle) throw new UserFacingError('Mașina selectată nu există.');
+    const appointment = ctx.tyreAppointments.create(data);
+    ctx.logger.info(`Programare cauciucuri creată: #${appointment.id} (mașina #${vehicle.id})`);
+    ctx.notifyDataChanged();
+    return appointment;
+  });
+
+  handle(IPC.tyres.appointments.update, tyreAppointmentUpdateSchema, (data) => {
+    const existing = ctx.tyreAppointments.getById(data.id);
+    if (!existing) throw new UserFacingError('Programarea nu a fost găsită.');
+    const vehicle = ctx.tyreVehicles.getById(data.vehicle_id);
+    if (!vehicle) throw new UserFacingError('Mașina selectată nu există.');
+    const appointment = ctx.tyreAppointments.update(data);
+    ctx.notifyDataChanged();
+    return appointment;
+  });
+
+  handle(IPC.tyres.appointments.setStatus, tyreAppointmentSetStatusSchema, (data) => {
+    const existing = ctx.tyreAppointments.getById(data.id);
+    if (!existing) throw new UserFacingError('Programarea nu a fost găsită.');
+    const appointment = ctx.tyreAppointments.setStatus(data);
+    ctx.notifyDataChanged();
+    return appointment;
+  });
+
+  // Schimb de sezon — mută atomic setul montat/demontat din/în depozit.
+  handle(IPC.tyres.swaps.list, tyreSwapListFilterSchema, (filter) => ctx.tyreSwaps.list(filter));
+
+  handle(IPC.tyres.swaps.get, z.object({ id: idSchema }), ({ id }) => {
+    const swap = ctx.tyreSwaps.getById(id);
+    if (!swap) throw new UserFacingError('Schimbul nu a fost găsit.');
+    return swap;
+  });
+
+  handle(IPC.tyres.swaps.create, tyreSwapCreateSchema, (data) => {
+    const vehicle = ctx.tyreVehicles.getById(data.vehicle_id);
+    if (!vehicle) throw new UserFacingError('Mașina selectată nu există.');
+    if (data.appointment_id) {
+      const appointment = ctx.tyreAppointments.getById(data.appointment_id);
+      if (!appointment) throw new UserFacingError('Programarea selectată nu există.');
+      if (appointment.vehicle_id !== data.vehicle_id) {
+        throw new UserFacingError('Programarea selectată este pentru altă mașină.');
+      }
+    }
+    if (data.mounted_source === 'din_depozit' && data.mounted_storage_id) {
+      const set = ctx.tyreStorage.getById(data.mounted_storage_id);
+      if (!set) throw new UserFacingError('Setul ales din depozit nu a fost găsit.');
+      if (set.vehicle_id !== data.vehicle_id) {
+        throw new UserFacingError('Setul ales din depozit aparține altei mașini.');
+      }
+      if (set.status !== 'in_depozit') {
+        throw new UserFacingError('Setul ales din depozit a fost deja ridicat.');
+      }
+    }
+    try {
+      const swap = ctx.tyreSwaps.create(data);
+      ctx.logger.info(`Schimb de sezon înregistrat: #${swap.id} (mașina #${vehicle.id})`);
+      ctx.notifyDataChanged();
+      return swap;
+    } catch (err) {
+      if (err instanceof TyreSwapValidationError) throw new UserFacingError(err.message);
+      throw err;
+    }
+  });
+
+  // Istoricul mesajelor Cauciucuri (manual + remindere de sezon)
+  handle(IPC.tyres.messages.list, tyreMessageLogListFilterSchema, (filter) => ctx.tyreMessageLog.list(filter));
+
+  // Remindere automate de sezon (serviciul e instanțiat mai sus, în capul funcției)
+  handle(IPC.tyres.seasonReminders.getSettings, null, () => seasonReminders.getSettings());
+
+  handle(IPC.tyres.seasonReminders.saveSettings, tyreSeasonReminderSettingsSchema, (data) => {
+    const settings = seasonReminders.saveSettings(data);
+    ctx.logger.info('Setările reminder-elor de sezon (Cauciucuri) au fost actualizate');
+    return settings;
+  });
+
+  handle(IPC.tyres.seasonReminders.status, null, () => seasonReminders.status());
 }

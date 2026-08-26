@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { useState } from 'react';
 import { Button, Card, Divider, Group, Stack, Text, UnstyledButton, Badge } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
@@ -60,21 +69,21 @@ export function CauciucuriDashboardPage() {
     <Stack gap="var(--sp-4)">
       <PageHeader
         title="Dashboard Cauciucuri"
-        description="Vulcanizare și hotel de cauciucuri — ce ai în depozit acum."
+        description="Vulcanizare și hotel de cauciucuri — ce ai în hotel acum."
         actions={
           <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            Set nou în depozit
+            Set nou în hotel
           </Button>
         }
       />
 
       <Group grow align="stretch">
         <StatCard
-          label="Seturi în depozit"
+          label="Seturi în hotel"
           value={counts?.sets_in_storage ?? '…'}
           icon={<IconBuildingWarehouse size={20} stroke={1.7} />}
           color="blue"
-          onClick={() => navigate('/cauciucuri/depozit')}
+          onClick={() => navigate('/cauciucuri/hotel')}
         />
         <StatCard
           label="Mașini înregistrate"
@@ -93,17 +102,17 @@ export function CauciucuriDashboardPage() {
 
       <Card padding="var(--sp-4)">
         <Text size="var(--fs-micro)" fw={600} tt="uppercase" c="var(--text-muted)" style={{ letterSpacing: '0.09em' }}>
-          În depozit
+          În hotel
         </Text>
         <Divider my={6} />
         {(data?.inStorage ?? []).length === 0 ? (
           <Text size="var(--fs-small)" c="var(--text-faint)" py={8}>
-            Niciun set în depozit momentan.
+            Niciun set în hotel momentan.
           </Text>
         ) : (
           <Stack gap={2}>
             {(data?.inStorage ?? []).map((s) => (
-              <SetRow key={s.id} set={s} onClick={() => navigate('/cauciucuri/depozit')} />
+              <SetRow key={s.id} set={s} onClick={() => navigate('/cauciucuri/hotel')} />
             ))}
           </Stack>
         )}
@@ -121,7 +130,7 @@ export function CauciucuriDashboardPage() {
         ) : (
           <Stack gap={2}>
             {(data?.recentIntakes ?? []).map((s) => (
-              <SetRow key={s.id} set={s} onClick={() => navigate('/cauciucuri/depozit')} />
+              <SetRow key={s.id} set={s} onClick={() => navigate('/cauciucuri/hotel')} />
             ))}
           </Stack>
         )}

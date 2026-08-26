@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import type { ComponentType } from 'react';
 import { RouterProvider, createHashRouter, Navigate, useParams, type RouteObject } from 'react-router-dom';
 import { AppShellLayout } from './components/AppShellLayout';
@@ -14,11 +23,19 @@ import { CovoarePlaceholder } from './pages/covoare/CovoarePlaceholder';
 import { CovoareDashboardPage } from './pages/covoare/CovoareDashboardPage';
 import { ClientiPage } from './pages/covoare/ClientiPage';
 import { ComenziPage } from './pages/covoare/ComenziPage';
+import { CalendarPage as CovoareCalendarPage } from './pages/covoare/CalendarPage';
+import { ReminderePage as CovoareReminderePage } from './pages/covoare/ReminderePage';
+import { MesajePage as CovoareMesajePage } from './pages/covoare/MesajePage';
+import { SetariPage as CovoareSetariPage } from './pages/covoare/SetariPage';
 import { CauciucuriPlaceholder } from './pages/cauciucuri/CauciucuriPlaceholder';
 import { CauciucuriDashboardPage } from './pages/cauciucuri/CauciucuriDashboardPage';
 import { ClientiPage as CauciucuriClientiPage } from './pages/cauciucuri/ClientiPage';
 import { MasiniPage } from './pages/cauciucuri/MasiniPage';
-import { DepozitPage } from './pages/cauciucuri/DepozitPage';
+import { HotelPage } from './pages/cauciucuri/HotelPage';
+import { ProgramariPage } from './pages/cauciucuri/ProgramariPage';
+import { ReminderePage as CauciucuriReminderePage } from './pages/cauciucuri/ReminderePage';
+import { MesajePage as CauciucuriMesajePage } from './pages/cauciucuri/MesajePage';
+import { SetariPage as CauciucuriSetariPage } from './pages/cauciucuri/SetariPage';
 import { WORKSPACES, getInitialRoute } from './workspace';
 
 /** La pornire (sau la navigare spre „/”) deschidem ultimul spațiu folosit. */
@@ -73,7 +90,19 @@ const router = createHashRouter([
       { index: true, element: <CovoareDashboardPage /> },
       { path: 'clienti', element: <ClientiPage /> },
       { path: 'comenzi', element: <ComenziPage /> },
-      ...placeholderChildren('covoare', CovoarePlaceholder, ['', 'clienti', 'comenzi']),
+      { path: 'calendar', element: <CovoareCalendarPage /> },
+      { path: 'remindere', element: <CovoareReminderePage /> },
+      { path: 'mesaje', element: <CovoareMesajePage /> },
+      { path: 'setari', element: <CovoareSetariPage /> },
+      ...placeholderChildren('covoare', CovoarePlaceholder, [
+        '',
+        'clienti',
+        'comenzi',
+        'calendar',
+        'remindere',
+        'mesaje',
+        'setari',
+      ]),
     ],
   },
   {
@@ -83,8 +112,25 @@ const router = createHashRouter([
       { index: true, element: <CauciucuriDashboardPage /> },
       { path: 'clienti', element: <CauciucuriClientiPage /> },
       { path: 'masini', element: <MasiniPage /> },
-      { path: 'depozit', element: <DepozitPage /> },
-      ...placeholderChildren('cauciucuri', CauciucuriPlaceholder, ['', 'clienti', 'masini', 'depozit']),
+      { path: 'programari', element: <ProgramariPage /> },
+      { path: 'hotel', element: <HotelPage /> },
+      // Ruta veche, dinaintea redenumirii „Depozit” → „Hotel cauciucuri”. Rămâne
+      // salvată în localStorage ca ultimă pagină vizitată, iar fără redirect ar
+      // deschide aplicația pe un ecran gol, fără cale de ieșire.
+      { path: 'depozit', element: <Navigate to="/cauciucuri/hotel" replace /> },
+      { path: 'remindere', element: <CauciucuriReminderePage /> },
+      { path: 'mesaje', element: <CauciucuriMesajePage /> },
+      { path: 'setari', element: <CauciucuriSetariPage /> },
+      ...placeholderChildren('cauciucuri', CauciucuriPlaceholder, [
+        '',
+        'clienti',
+        'masini',
+        'programari',
+        'hotel',
+        'remindere',
+        'mesaje',
+        'setari',
+      ]),
     ],
   },
   // Rute vechi fără prefix de spațiu — main trimite astfel de căi din notificări

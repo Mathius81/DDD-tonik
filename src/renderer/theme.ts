@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { createTheme, rem, type MantineColorsTuple } from '@mantine/core';
 
 /**
@@ -155,5 +164,12 @@ export const theme = createTheme({
     SegmentedControl: {
       defaultProps: { size: 'sm', radius: 'md' },
     },
+    // Ziua de azi vizibilă în TOATE calendarele (Covoare, DDD, Cauciucuri), distinctă de ziua
+    // selectată — vezi .mantine-Day-root[data-today] în styles.css pentru accentul vizual.
+    DateInput: { defaultProps: { highlightToday: true } },
+    DatePickerInput: { defaultProps: { highlightToday: true } },
+    DateTimePicker: { defaultProps: { highlightToday: true } },
+    DatePicker: { defaultProps: { highlightToday: true } },
+    Calendar: { defaultProps: { highlightToday: true } },
   },
 });

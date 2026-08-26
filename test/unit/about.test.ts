@@ -1,0 +1,270 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const electronMock = vi.hoisted(() => {
+  const handlers = new Map<string, (event: unknown, payload: unknown) => unknown>();
+  return {
+    handlers,
+    ipcMain: {
+      handle: vi.fn((channel: string, fn: (event: unknown, payload: unknown) => unknown) => {
+        handlers.set(channel, fn);
+      }),
+    },
+    app: { getVersion: vi.fn(() => '1.2.3') },
+    shell: { openPath: vi.fn(async () => '') },
+  };
+});
+
+vi.mock('electron', () => ({
+  ipcMain: electronMock.ipcMain,
+  app: electronMock.app,
+  shell: electronMock.shell,
+}));
+
+import { app, shell } from 'electron';
+import { createTestDb, seedBasics } from '../helpers/tmp-db';
+import type { Db } from '../../src/main/db/database';
+import type { AppPaths } from '../../src/main/paths';
+import { AppContext } from '../../src/main/app-context';
+import { LicenseService } from '../../src/main/services/license.service';
+import { registerAboutHandlers } from '../../src/main/ipc/about.ipc';
+import { saveIntervention } from '../../src/main/domain/followup-engine';
+import { defaultReminderRules } from '../../src/shared/schemas/reminder';
+import { IPC } from '../../src/shared/ipc-contract';
+import type { IpcResult } from '../../src/shared/ipc-contract';
+import type { AboutDiagnostics, AboutStats } from '../../src/shared/schemas/about';
+
+const silentLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never;
+
+describe('about.ipc', () => {
+  let db: Db;
+  let cleanup: () => void;
+  let dir: string;
+  let paths: AppPaths;
+  let ctx: AppContext;
+  let license: LicenseService;
+  let ids: { associationId: number; contactId: number; serviceId: number };
+
+  beforeEach(() => {
+    const t = createTestDb();
+    db = t.db;
+    cleanup = t.cleanup;
+    ids = seedBasics(db);
+
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddd-about-'));
+    paths = {
+      dataDir: dir,
+      backupsDir: path.join(dir, 'backups'),
+      logsDir: path.join(dir, 'logs'),
+      dbFile: path.join(dir, 'data', 'ddd-manager.sqlite'),
+    };
+    fs.mkdirSync(paths.backupsDir, { recursive: true });
+    fs.mkdirSync(paths.logsDir, { recursive: true });
+
+    ctx = new AppContext(db, paths, silentLogger, () => null, () => new Date('2026-08-20T09:00:00'));
+    license = new LicenseService(ctx.settings, silentLogger, ctx.now);
+
+    electronMock.handlers.clear();
+    vi.mocked(app.getVersion).mockClear();
+    vi.mocked(shell.openPath).mockClear().mockResolvedValue('');
+
+    registerAboutHandlers(ctx, license);
+  });
+
+  afterEach(() => {
+    cleanup();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  async function invoke<T>(channel: string, payload?: unknown): Promise<IpcResult<T>> {
+    const fn = electronMock.handlers.get(channel);
+    if (!fn) throw new Error(`Handler neînregistrat: ${channel}`);
+    return (await fn({}, payload)) as IpcResult<T>;
+  }
+
+  describe('about:diagnostics', () => {
+    it('numără rândurile din toate tabelele relevante și include versiunea schemei', async () => {
+      saveIntervention(
+        db,
+        {
+          association_id: ids.associationId,
+          service_id: ids.serviceId,
+          performed_date: '2026-08-01',
+          interval_months: 3,
+          notes: null,
+          completes_followup_id: null,
+        },
+        defaultReminderRules,
+        '2026-08-01',
+      );
+
+      const result = await invoke<AboutDiagnostics>(IPC.about.diagnostics);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.data.tableCounts.associations).toBe(1);
+      expect(result.data.tableCounts.contacts).toBe(1);
+      expect(result.data.tableCounts.interventions).toBe(1);
+      expect(result.data.tableCounts.carpetClients).toBe(0);
+      expect(result.data.tableCounts.tyreClients).toBe(0);
+      expect(result.data.schemaVersion).toBeGreaterThan(0);
+      expect(result.data.dbPath).toBe(paths.dbFile);
+      expect(result.data.logsPath).toBe(paths.logsDir);
+      expect(result.data.license.status).toBe('missing');
+      expect(result.data.lastBackup).toBeNull();
+      expect(result.data.recentErrors).toEqual([]);
+    });
+
+    it('găsește ultimul backup după numele fișierului, dintre mai multe', async () => {
+      fs.writeFileSync(path.join(paths.backupsDir, 'ddd-manager-2026-08-10.sqlite'), 'x');
+      fs.writeFileSync(path.join(paths.backupsDir, 'ddd-manager-2026-08-19.sqlite'), 'xyz');
+      fs.writeFileSync(path.join(paths.backupsDir, 'altceva.txt'), 'nu conteaza');
+
+      const result = await invoke<AboutDiagnostics>(IPC.about.diagnostics);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.lastBackup?.name).toBe('ddd-manager-2026-08-19.sqlite');
+      expect(result.data.lastBackup?.sizeBytes).toBe(3);
+    });
+
+    it('citește doar ultimele linii ERROR din logul zilei curente', async () => {
+      // `readRecentErrors` se uită la data REALĂ de sistem (logul de azi, pentru un
+      // telefon de suport chiar acum) — nu la `ctx.now()`, care e fixat mai sus pentru
+      // celelalte calcule din test.
+      const azi = new Date().toISOString().slice(0, 10);
+      const logFile = path.join(paths.logsDir, `ddd-${azi}.log`);
+      const lines = Array.from({ length: 25 }, (_, i) => `[${azi} 09:0${i % 6}:00] ERROR eroare ${i}`);
+      lines.splice(5, 0, `[${azi} 09:00:00] INFO ceva normal, nu e eroare`);
+      fs.writeFileSync(logFile, lines.join('\n'));
+
+      const result = await invoke<AboutDiagnostics>(IPC.about.diagnostics);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.recentErrors).toHaveLength(20);
+      expect(result.data.recentErrors.every((l) => l.includes('] ERROR '))).toBe(true);
+      expect(result.data.recentErrors[19]).toContain('eroare 24');
+    });
+  });
+
+  describe('about:stats', () => {
+    it('calculează totalurile, luna cea mai aglomerată și clientul cu cele mai multe lucrări', async () => {
+      saveIntervention(
+        db,
+        {
+          association_id: ids.associationId,
+          service_id: ids.serviceId,
+          performed_date: '2026-07-05',
+          interval_months: 3,
+          notes: null,
+          completes_followup_id: null,
+        },
+        defaultReminderRules,
+        '2026-07-05',
+      );
+      saveIntervention(
+        db,
+        {
+          association_id: ids.associationId,
+          service_id: ids.serviceId,
+          performed_date: '2026-08-01',
+          interval_months: 3,
+          notes: null,
+          completes_followup_id: null,
+        },
+        defaultReminderRules,
+        '2026-08-01',
+      );
+      saveIntervention(
+        db,
+        {
+          association_id: ids.associationId,
+          service_id: ids.serviceId,
+          performed_date: '2026-08-02',
+          interval_months: 3,
+          notes: null,
+          completes_followup_id: null,
+        },
+        defaultReminderRules,
+        '2026-08-02',
+      );
+      db.run(
+        `INSERT INTO message_logs (association_id, channel, recipient, message_preview, status)
+         VALUES (${ids.associationId}, 'email', 'test@test.ro', 'text', 'confirmed_sent')`,
+      );
+      db.run(
+        `INSERT INTO message_logs (association_id, channel, recipient, message_preview, status)
+         VALUES (${ids.associationId}, 'email', 'test@test.ro', 'text', 'failed')`,
+      );
+
+      const result = await invoke<AboutStats>(IPC.about.stats);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.data.totalInterventions).toBe(3);
+      expect(result.data.totalMessagesSent).toBe(1);
+      expect(result.data.busiestMonth).toEqual({ month: '2026-08', count: 2 });
+      expect(result.data.topAssociation).toEqual({ name: 'Asociația Bloc A7', count: 3 });
+      expect(result.data.monthlyAverage).toBeCloseTo(1.5, 5); // 3 intervenții / 2 luni distincte
+    });
+  });
+
+  describe('about:resetReportGuard', () => {
+    it('șterge marcajul „trimis azi” al raportului indicat', async () => {
+      ctx.settings.setRaw('last_daily_digest_date::ddd_dimineata', '2026-08-20');
+
+      const result = await invoke(IPC.about.resetReportGuard, { report: 'ddd_dimineata' });
+      expect(result.ok).toBe(true);
+      expect(ctx.settings.getRaw('last_daily_digest_date::ddd_dimineata')).toBeUndefined();
+    });
+
+    it('respinge un identificator de raport necunoscut', async () => {
+      const result = await invoke(IPC.about.resetReportGuard, { report: 'nu_exista' });
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  describe('about:openLogsFolder / about:openBackupsFolder', () => {
+    it('deschide folderul de loguri prin shell.openPath', async () => {
+      const result = await invoke(IPC.about.openLogsFolder);
+      expect(result.ok).toBe(true);
+      expect(shell.openPath).toHaveBeenCalledWith(paths.logsDir);
+    });
+
+    it('deschide folderul de backup implicit prin shell.openPath', async () => {
+      const result = await invoke(IPC.about.openBackupsFolder);
+      expect(result.ok).toBe(true);
+      expect(shell.openPath).toHaveBeenCalledWith(paths.backupsDir);
+    });
+
+    it('raportează eroare clară dacă shell.openPath eșuează', async () => {
+      vi.mocked(shell.openPath).mockResolvedValueOnce('nu am gasit folderul');
+      const result = await invoke(IPC.about.openLogsFolder);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error).toContain('nu am gasit folderul');
+    });
+  });
+
+  describe('about:get', () => {
+    it('include versiunea aplicației și numărul de asociații/intervenții', async () => {
+      const result = await invoke<{ version: string; associations: number; interventions: number }>(
+        IPC.about.get,
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.version).toBe('1.2.3');
+      expect(result.data.associations).toBe(1);
+    });
+  });
+});

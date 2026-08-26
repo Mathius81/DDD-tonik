@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { useState } from 'react';
 import { Stack, Group, Paper, Text, TextInput, Textarea, Select, Switch, Button, Table } from '@mantine/core';
 import { IconTemplate, IconPlus } from '@tabler/icons-react';
@@ -59,11 +68,20 @@ interface FormState {
 
 const EMPTY_FORM: FormState = { id: null, name: '', channel: 'whatsapp', subject: '', body: '', active: true };
 
+/**
+ * Prefixul șabloanelor tehnice, folosite intern de aplicație (ex. ancora pentru
+ * maparea Meta a reminderelor de sezon la cauciucuri). Nu se afișează aici:
+ * activarea lor din greșeală ar dezactiva șablonul real al canalului, iar
+ * reminderele către asociații ar pleca cu un text tehnic.
+ */
+const PREFIX_SABLON_TEHNIC = 'NU ACTIVA';
+
 export function SabloaneTab() {
-  const { data: templates, reload } = useIpcQuery<MessageTemplate[]>(
+  const { data: allTemplates, reload } = useIpcQuery<MessageTemplate[]>(
     () => ddd.messages.templates.list(),
     [],
   );
+  const templates = allTemplates?.filter((t) => !t.name.startsWith(PREFIX_SABLON_TEHNIC));
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 

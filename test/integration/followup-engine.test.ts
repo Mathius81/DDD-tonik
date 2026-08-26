@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTestDb, seedBasics } from '../helpers/tmp-db';
 import type { Db } from '../../src/main/db/database';
@@ -131,8 +140,8 @@ describe('migrations', () => {
   it('sunt idempotente — a doua rulare nu aplică nimic', () => {
     const t = createTestDb();
     try {
-      // Versiunea crește cu fiecare migrație nouă (ex.: 003_covoare).
-      expect(currentSchemaVersion(t.db)).toBe(4);
+      // Versiunea crește cu fiecare migrație nouă (ex.: 003_covoare, 007_cauciucuri_season_key).
+      expect(currentSchemaVersion(t.db)).toBe(7);
       expect(runMigrations(t.db)).toEqual([]);
     } finally {
       t.cleanup();

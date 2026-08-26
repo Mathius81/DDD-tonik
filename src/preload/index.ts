@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from '../shared/ipc-contract';
 
@@ -79,6 +88,14 @@ const api = {
     check: invoke(IPC.license.check),
     activate: invoke(IPC.license.activate),
   },
+  about: {
+    get: invoke(IPC.about.get),
+    diagnostics: invoke(IPC.about.diagnostics),
+    stats: invoke(IPC.about.stats),
+    resetReportGuard: invoke(IPC.about.resetReportGuard),
+    openLogsFolder: invoke(IPC.about.openLogsFolder),
+    openBackupsFolder: invoke(IPC.about.openBackupsFolder),
+  },
   carpets: {
     clients: {
       list: invoke(IPC.carpets.clients.list),
@@ -95,6 +112,22 @@ const api = {
     },
     dashboard: {
       get: invoke(IPC.carpets.dashboard.get),
+    },
+    calendar: {
+      month: invoke(IPC.carpets.calendar.month),
+    },
+    settings: {
+      get: invoke(IPC.carpets.settings.get),
+      update: invoke(IPC.carpets.settings.update),
+    },
+    reminders: {
+      get: invoke(IPC.carpets.reminders.get),
+    },
+    messages: {
+      list: invoke(IPC.carpets.messages.list),
+    },
+    whatsapp: {
+      send: invoke(IPC.carpets.whatsapp.send),
     },
   },
   tyres: {
@@ -123,6 +156,26 @@ const api = {
     },
     whatsapp: {
       send: invoke(IPC.tyres.whatsapp.send),
+    },
+    appointments: {
+      list: invoke(IPC.tyres.appointments.list),
+      get: invoke(IPC.tyres.appointments.get),
+      create: invoke(IPC.tyres.appointments.create),
+      update: invoke(IPC.tyres.appointments.update),
+      setStatus: invoke(IPC.tyres.appointments.setStatus),
+    },
+    swaps: {
+      list: invoke(IPC.tyres.swaps.list),
+      get: invoke(IPC.tyres.swaps.get),
+      create: invoke(IPC.tyres.swaps.create),
+    },
+    messages: {
+      list: invoke(IPC.tyres.messages.list),
+    },
+    seasonReminders: {
+      getSettings: invoke(IPC.tyres.seasonReminders.getSettings),
+      saveSettings: invoke(IPC.tyres.seasonReminders.saveSettings),
+      status: invoke(IPC.tyres.seasonReminders.status),
     },
   },
   backup: {

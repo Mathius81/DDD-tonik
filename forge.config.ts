@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Configurația de împachetare. `appCopyright` ajunge în metadatele fișierului
+ * executabil: pe Windows se vede în Proprietăți → Detalii, deci autorul rămâne
+ * vizibil chiar și pentru cine nu are codul sursă.
+ */
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
@@ -13,12 +22,23 @@ const config: ForgeConfig = {
     name: 'DDDManager',
     executableName: 'DDDManager',
     appBundleId: 'ro.dddmanager.app',
+    appCopyright: 'Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.',
+    win32metadata: {
+      CompanyName: 'Marius Constantinescu',
+      FileDescription: 'Tonik — DDD Manager',
+      ProductName: 'Tonik — DDD Manager',
+      OriginalFilename: 'DDDManager.exe',
+    },
   },
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({
       name: 'ddd_manager',
       setupExe: 'DDDManager-Setup.exe',
+      authors: 'Marius Constantinescu',
+      owners: 'Marius Constantinescu',
+      copyright: 'Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.',
+      description: 'Tonik — DDD Manager, creație originală a lui Marius Constantinescu.',
     }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),

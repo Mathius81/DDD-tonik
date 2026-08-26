@@ -295,3 +295,20 @@ table,
 .tonik-hover-row:hover {
   background: var(--bg-subtle);
 }
+
+/* ============================================================
+   Ziua de azi în calendare (Mantine highlightToday, setat global
+   din theme.ts pentru DateInput/DatePickerInput/DateTimePicker/
+   DatePicker/Calendar) — vizibil în Covoare, DDD și Cauciucuri.
+   Mantine exclude implicit ziua selectată din acest stil
+   ([data-today][data-highlight-today]:not([data-selected])), deci
+   „azi” și „selectat” nu se confundă niciodată — aici doar întărim
+   vizibilitatea chenarului implicit (prea discret) cu accentul Tonik.
+   ============================================================ */
+:where([data-mantine-color-scheme='light'])
+  [data-today][data-highlight-today]:not([data-selected], [data-in-range]),
+:where([data-mantine-color-scheme='dark'])
+  [data-today][data-highlight-today]:not([data-selected], [data-in-range]) {
+  border: 1.5px solid var(--accent) !important;
+  font-weight: 650;
+}

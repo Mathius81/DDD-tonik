@@ -1,8 +1,18 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { useState } from 'react';
 import { ActionIcon, Modal, Stack, Textarea, Group, Button, Tooltip, Text } from '@mantine/core';
 import { IconBrandWhatsapp } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { runMutation } from '../../api/useIpc';
+import type { TyreSeason } from '../../../shared/schemas/tyre';
 
 interface Props {
   clientId: number;
@@ -11,6 +21,12 @@ interface Props {
   defaultMessage: string;
   /** Etichetă scurtă afișată în modal (ex. numele clientului / al mașinii). */
   subtitle?: string;
+  /** Sursa mesajului în istoric — implicit „manual” (ex. fișă client/mașină/set). */
+  source?: 'manual' | 'season_reminder';
+  /** Sezonul vizat, când `source` e „season_reminder” (afișat/salvat în istoric). */
+  season?: TyreSeason | null;
+  /** Apelat după o trimitere reușită (ex. pagina Remindere marchează clientul ca notificat). */
+  onSent?: () => void;
 }
 
 /**
@@ -19,7 +35,15 @@ interface Props {
  * spațiul DDD (`sendWhatsappAssisted`). Trimiterea rămâne mereu o decizie a utilizatorului,
  * nu se trimite nimic automat.
  */
-export function TyreWhatsappButton({ clientId, phone, defaultMessage, subtitle }: Props) {
+export function TyreWhatsappButton({
+  clientId,
+  phone,
+  defaultMessage,
+  subtitle,
+  source = 'manual',
+  season = null,
+  onSent,
+}: Props) {
   const [opened, setOpened] = useState(false);
   const [message, setMessage] = useState(defaultMessage);
   const [sending, setSending] = useState(false);
@@ -32,11 +56,14 @@ export function TyreWhatsappButton({ clientId, phone, defaultMessage, subtitle }
   const send = async () => {
     setSending(true);
     const result = await runMutation(
-      ddd.tyres.whatsapp.send({ client_id: clientId, message }),
+      ddd.tyres.whatsapp.send({ client_id: clientId, message, source, season }),
       'WhatsApp s-a deschis cu mesajul pregătit. Apasă Send acolo pentru a-l trimite.',
     );
     setSending(false);
-    if (result) setOpened(false);
+    if (result) {
+      setOpened(false);
+      onSent?.();
+    }
   };
 
   return (

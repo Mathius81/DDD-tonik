@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTestDb } from '../helpers/tmp-db';
 import { extractPageSizeFromRenderer } from '../helpers/pagesize-contract';
@@ -23,7 +32,9 @@ describe('Covoare — migrația 003', () => {
   it('creează tabelele carpet_clients/carpet_orders/carpet_order_items și e idempotentă', () => {
     const t = createTestDb();
     try {
-      expect(currentSchemaVersion(t.db)).toBe(4);
+      // Versiunea globală crește cu fiecare migrație nouă din orice modul (ex.: migrația 007
+      // — Cauciucuri/season_key — nu adaugă tabele carpet_*, dar tot incrementează versiunea).
+      expect(currentSchemaVersion(t.db)).toBe(7);
       expect(runMigrations(t.db)).toEqual([]);
 
       const tables = t.db
@@ -31,7 +42,15 @@ describe('Covoare — migrația 003', () => {
           `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'carpet_%' ORDER BY name`,
         )
         .map((r) => r.name);
-      expect(tables).toEqual(['carpet_clients', 'carpet_order_items', 'carpet_orders']);
+      // migrația 005 (covoare_v2) adaugă carpet_settings + carpet_message_logs — tabele NOI,
+      // izolate de restul aplicației (fără nicio coloană nouă pe tabele partajate).
+      expect(tables).toEqual([
+        'carpet_clients',
+        'carpet_message_logs',
+        'carpet_order_items',
+        'carpet_orders',
+        'carpet_settings',
+      ]);
     } finally {
       t.cleanup();
     }
@@ -127,6 +146,10 @@ describe('CarpetOrderRepository', () => {
   it('creează o comandă cu covoare și calculează corect mp-ul total', () => {
     const order = orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -149,6 +172,10 @@ describe('CarpetOrderRepository', () => {
   it('calculează totalul informativ doar când price_per_sqm este completat', () => {
     const order = orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -164,6 +191,10 @@ describe('CarpetOrderRepository', () => {
   it('rotunjește corect suprafața pentru a evita artefactele de virgulă mobilă', () => {
     const order = orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -186,6 +217,10 @@ describe('CarpetOrderRepository', () => {
   it('editează o comandă: înlocuiește lista de covoare', () => {
     const created = orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -219,6 +254,10 @@ describe('CarpetOrderRepository', () => {
   it('setStatus schimbă doar statusul comenzii', () => {
     const created = orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -235,6 +274,10 @@ describe('CarpetOrderRepository', () => {
   it('filtrează comenzile după status', () => {
     orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -244,6 +287,10 @@ describe('CarpetOrderRepository', () => {
     });
     const gata = orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-21',
       due_date: null,
       status: 'gata',
@@ -261,6 +308,10 @@ describe('CarpetOrderRepository', () => {
     const otherClientId = clients.create({ name: 'Alt Client', phone: null, address: null, notes: null }).id;
     orders.create({
       client_id: otherClientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -270,6 +321,10 @@ describe('CarpetOrderRepository', () => {
     });
     orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -286,6 +341,10 @@ describe('CarpetOrderRepository', () => {
   it('caută comenzile după numele sau telefonul clientului', () => {
     orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'preluat',
@@ -301,6 +360,10 @@ describe('CarpetOrderRepository', () => {
   it('countsForDashboard numără corect comenzile în lucru, gata și preluate azi', () => {
     orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-25',
       due_date: null,
       status: 'in_lucru',
@@ -310,6 +373,10 @@ describe('CarpetOrderRepository', () => {
     });
     orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'gata',
@@ -319,6 +386,10 @@ describe('CarpetOrderRepository', () => {
     });
     orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-25',
       due_date: null,
       status: 'preluat',
@@ -334,6 +405,10 @@ describe('CarpetOrderRepository', () => {
   it('listByStatus și listPickedUpOn întorc listele corecte pentru dashboard', () => {
     const gata = orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-20',
       due_date: null,
       status: 'gata',
@@ -343,6 +418,10 @@ describe('CarpetOrderRepository', () => {
     });
     const azi = orders.create({
       client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
       pickup_date: '2026-08-25',
       due_date: null,
       status: 'preluat',
@@ -359,6 +438,10 @@ describe('CarpetOrderRepository', () => {
     expect(() =>
       orders.create({
         client_id: 999999,
+        client_name: null,
+        client_phone: null,
+        client_address: null,
+        client_notes: null,
         pickup_date: '2026-08-20',
         due_date: null,
         status: 'preluat',

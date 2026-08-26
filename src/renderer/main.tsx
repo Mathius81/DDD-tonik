@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import '@fontsource/inter/400.css';
@@ -16,6 +25,7 @@ import { ModalsProvider } from '@mantine/modals';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ro';
 import { App } from './App';
+import { SemnaturaAutor } from './components/SemnaturaAutor';
 import { theme } from './theme';
 import { applyAppearance, watchSystemTheme } from './appearance';
 
@@ -41,6 +51,8 @@ function Root() {
         <ModalsProvider>
           <Notifications position="bottom-right" autoClose={4000} />
           <App />
+          {/* Semnătura autorului — se deschide cu secvența secretă (vezi componenta). */}
+          <SemnaturaAutor />
         </ModalsProvider>
       </DatesProvider>
     </MantineProvider>

@@ -2,9 +2,14 @@
   "name": "ddd-manager",
   "productName": "DDD Manager",
   "version": "1.0.0",
-  "description": "Manager intervenții pentru firme de dezinsecție, dezinfecție și deratizare",
+  "description": "Tonik — aplicație de management pentru servicii DDD, spălare covoare și vulcanizare. Creație originală a lui Marius Constantinescu.",
   "main": ".vite/build/main.js",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mathius81/DDD-tonik.git"
+  },
+  "homepage": "https://github.com/Mathius81/DDD-tonik#readme",
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
@@ -17,10 +22,10 @@
   },
   "keywords": [],
   "author": {
-    "name": "mathius81",
+    "name": "Marius Constantinescu",
     "email": "mc.constantinescu1981@gmail.com"
   },
-  "license": "MIT",
+  "license": "UNLICENSED",
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",

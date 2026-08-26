@@ -1,3 +1,12 @@
+/**
+ * Tonik — DDD Manager
+ * Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.
+ * Autor: Marius Constantinescu <mc.constantinescu1981@gmail.com>
+ *
+ * Creație originală, scrisă pentru nevoile reale ale firmei — nu un produs
+ * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
+ * sau distribuirea fără acordul scris al autorului sunt interzise.
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Stack, Group, Button, TextInput, SegmentedControl, Text, Card, ActionIcon, Tooltip, Badge } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
@@ -39,8 +48,12 @@ function todayIso(): string {
 
 const statusFilterValues = ['in_depozit', 'ridicat', 'all'] as const;
 
-/** Depozit — hotelul de cauciucuri: seturile lăsate în custodie, curente și istoric. */
-export function DepozitPage() {
+/**
+ * Hotel cauciucuri — pagina unică pentru custodia seturilor lăsate de clienți (fostul
+ * „Depozit”, redenumit: nu există o distincție reală între „inventar fizic” și „hotel”
+ * pentru acest atelier — un singur loc, un singur flux, mai simplu pentru cel de la tejghea).
+ */
+export function HotelPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebouncedValue(search, 250);
@@ -121,8 +134,8 @@ export function DepozitPage() {
   return (
     <Stack gap="var(--sp-4)">
       <PageHeader
-        title="Depozit"
-        description="Hotelul de cauciucuri — seturile lăsate în custodie de clienți."
+        title="Hotel cauciucuri"
+        description="Seturile lăsate în custodie de clienți — intrare, ridicare, istoric."
         actions={
           <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Set nou în depozit
