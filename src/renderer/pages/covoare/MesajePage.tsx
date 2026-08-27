@@ -135,7 +135,7 @@ export function MesajePage() {
       />
 
       <Card padding="var(--sp-4)">
-        {!loading && data && data.total === 0 ? (
+        {data && data.total === 0 ? (
           <EmptyState
             icon={<IconBrandWhatsapp size={24} stroke={1.5} />}
             title="Niciun mesaj trimis încă."

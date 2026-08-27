@@ -43,7 +43,7 @@ export function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-  const { data } = useIpcQuery<CarpetCalendarDayEntry[]>(
+  const { data, loading } = useIpcQuery<CarpetCalendarDayEntry[]>(
     () => ddd.carpets.calendar.month({ month: monthKey }),
     [monthKey],
   );
@@ -109,7 +109,10 @@ export function CalendarPage() {
 
   const todayIso = iso(now.getFullYear(), now.getMonth(), now.getDate());
   const selectedEntries = selectedDay ? (byDay.get(selectedDay) ?? []) : [];
-  const hasAnyEntries = (data?.length ?? 0) > 0;
+  // Gardat pe `!loading`, la fel ca listele cu tabel: altfel, la schimbarea lunii, luna
+  // veche (cu intrări) dispare instant, înlocuită de starea goală, până sosesc datele noi —
+  // aceeași sclipire ca la tabele, doar că aici containerul e grila de calendar.
+  const hasAnyEntries = loading || (data?.length ?? 0) > 0;
 
   // Nu există o rută de detalii per-comandă — deschidem lista Comenzi, unde comanda
   // poate fi găsită rapid după numele sau telefonul clientului (căutare live).
@@ -154,7 +157,11 @@ export function CalendarPage() {
             onAction={() => navigate('/covoare/comenzi')}
           />
         ) : (
-          <SimpleGrid cols={7} spacing={4}>
+          <SimpleGrid
+            cols={7}
+            spacing={4}
+            style={{ opacity: loading ? 0.55 : 1, transition: 'opacity 120ms ease' }}
+          >
             {weekDays.map((d) => (
               <Text key={d} ta="center" size="var(--fs-micro)" c="var(--text-muted)" fw={600} tt="uppercase" pb={2}>
                 {d}

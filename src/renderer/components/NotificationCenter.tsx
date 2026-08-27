@@ -30,7 +30,10 @@ import {
 import { ddd } from '../api/ddd';
 import { unwrap } from '../api/useIpc';
 import { fmtDate } from './dateUtils';
+import { useWorkspace } from '../workspace';
 import type { AppNotification, NotificationsData } from '../../shared/schemas/notifications';
+import type { CarpetTodoSummary } from '../../shared/schemas/carpet';
+import type { TyreTodoSummary } from '../../shared/schemas/tyre';
 
 const kindMeta: Record<
   string,
@@ -68,22 +71,45 @@ const kindMeta: Record<
 };
 
 /**
- * Centrul de notificări din aplicație.
+ * Centrul de notificări din aplicație — conținutul cardului „De făcut azi” depinde de
+ * spațiul de lucru activ:
+ * - DDD: lista completă de urmăriri (restanțe, termene, intervenții programate, mesaje eșuate),
+ *   neschimbată — click deschide același sertar detaliat ca până acum.
+ * - Covoare: comenzi „gata de livrat” sau cu termenul depășit — click duce direct la Comenzi.
+ * - Cauciucuri: programările de azi, încă neprocesate — click duce direct la Programări.
  * Sarcinile sunt derivate din date, deci persistă până sunt rezolvate —
  * nu dispar la restart și nu pot fi „ratate” ca notificările de sistem.
  */
 export function NotificationCenter() {
   const navigate = useNavigate();
+  const { workspace } = useWorkspace();
   const [opened, setOpened] = useState(false);
   const [data, setData] = useState<NotificationsData | null>(null);
+  const [carpetTodos, setCarpetTodos] = useState<CarpetTodoSummary | null>(null);
+  const [tyreTodos, setTyreTodos] = useState<TyreTodoSummary | null>(null);
 
-  const load = () => {
-    unwrap<NotificationsData>(ddd.dashboard.notifications())
-      .then(setData)
-      .catch(() => undefined);
-  };
+  // Sertarul detaliat există doar pentru DDD — la schimbarea spațiului de lucru îl închidem,
+  // ca să nu rămână deschis cu datele vechi peste noul spațiu.
+  useEffect(() => {
+    setOpened(false);
+  }, [workspace]);
 
   useEffect(() => {
+    const load = () => {
+      if (workspace === 'covoare') {
+        unwrap<CarpetTodoSummary>(ddd.carpets.dashboard.todos())
+          .then(setCarpetTodos)
+          .catch(() => undefined);
+      } else if (workspace === 'cauciucuri') {
+        unwrap<TyreTodoSummary>(ddd.tyres.dashboard.todos())
+          .then(setTyreTodos)
+          .catch(() => undefined);
+      } else {
+        unwrap<NotificationsData>(ddd.dashboard.notifications())
+          .then(setData)
+          .catch(() => undefined);
+      }
+    };
     load();
     // Reîncarcă la fiecare schimbare de date (scheduler, acțiuni utilizator).
     const unsubscribe = ddd.events.onDataChanged(load);
@@ -93,14 +119,29 @@ export function NotificationCenter() {
       unsubscribe();
       clearInterval(timer);
     };
-  }, []);
+  }, [workspace]);
 
-  const badge = data?.badge ?? 0;
+  const badge =
+    workspace === 'covoare'
+      ? (carpetTodos?.badge ?? 0)
+      : workspace === 'cauciucuri'
+        ? (tyreTodos?.badge ?? 0)
+        : (data?.badge ?? 0);
+
+  const handleCardClick = () => {
+    if (workspace === 'covoare') {
+      navigate('/covoare/comenzi');
+    } else if (workspace === 'cauciucuri') {
+      navigate('/cauciucuri/programari');
+    } else {
+      setOpened(true);
+    }
+  };
 
   return (
     <>
       <UnstyledButton
-        onClick={() => setOpened(true)}
+        onClick={handleCardClick}
         className="tonik-todo-card"
         data-alert={badge > 0 || undefined}
         aria-label="Notificări"

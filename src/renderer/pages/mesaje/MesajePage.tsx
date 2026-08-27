@@ -100,7 +100,7 @@ export function MesajePage() {
       />
 
       <Card padding="var(--sp-4)">
-        {!loading && data && data.total === 0 ? (
+        {data && data.total === 0 ? (
           <EmptyState
             title="Niciun mesaj aici."
             description="Mesajele trimise sau pregătite pentru clienți apar automat."

@@ -84,7 +84,7 @@ export function HotelPage() {
     [status, debouncedSearch, page],
   );
 
-  const isEmpty = !loading && data && data.total === 0 && !debouncedSearch && status === 'in_depozit';
+  const isEmpty = data && data.total === 0 && !debouncedSearch && status === 'in_depozit';
 
   const openCreate = () => {
     setEditing(null);

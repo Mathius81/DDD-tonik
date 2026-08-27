@@ -560,3 +560,16 @@ export interface TyreDashboardData {
   inStorage: TyreStorageListItem[];
   recentIntakes: TyreStorageListItem[];
 }
+
+/** O programare de azi, încă neprocesată (nu finalizată, nu anulată). */
+export interface TyreTodoItem {
+  appointment_id: number;
+  plate_number: string;
+  client_name: string;
+  appointment_time: string;
+}
+
+export interface TyreTodoSummary {
+  badge: number;
+  items: TyreTodoItem[];
+}

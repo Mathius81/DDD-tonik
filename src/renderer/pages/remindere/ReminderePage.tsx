@@ -86,7 +86,7 @@ export function ReminderePage() {
       />
 
       <Card padding="var(--sp-4)">
-        {!loading && data && data.total === 0 ? (
+        {data && data.total === 0 ? (
           <EmptyState
             title="Niciun reminder aici."
             description="Reminderele apar automat când înregistrezi o intervenție."

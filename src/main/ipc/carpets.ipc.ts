@@ -105,6 +105,8 @@ export function registerCarpetHandlers(ctx: AppContext): void {
     };
   });
 
+  handle(IPC.carpets.dashboard.todos, null, () => ctx.carpetOrders.todosForDashboard(ctx.todayIso()));
+
   // Calendar
   handle(IPC.carpets.calendar.month, carpetCalendarMonthFilterSchema, ({ month }) =>
     ctx.carpetOrders.calendarMonth(month),

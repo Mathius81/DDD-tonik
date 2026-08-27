@@ -49,7 +49,7 @@ export function ClientiPage() {
     [debouncedSearch, page],
   );
 
-  const isEmpty = !loading && data && data.total === 0 && !debouncedSearch;
+  const isEmpty = data && data.total === 0 && !debouncedSearch;
 
   const openCreate = () => {
     setEditing(null);

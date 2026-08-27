@@ -65,7 +65,7 @@ export function MasiniPage() {
     [clientId, debouncedSearch, page],
   );
 
-  const isEmpty = !loading && data && data.total === 0 && !debouncedSearch && !clientId;
+  const isEmpty = data && data.total === 0 && !debouncedSearch && !clientId;
   const filteredClientName = clientId ? data?.items[0]?.client_name : undefined;
 
   const openCreate = () => {

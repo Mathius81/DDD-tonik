@@ -153,7 +153,12 @@ export function ProgramariPage() {
       </Group>
 
       <Card padding="var(--sp-4)">
-        {!loading && data && data.total === 0 ? (
+        {/* Nu comutăm între „stare goală” și tabel cât timp se încarcă: la schimbarea
+            zilei, `loading` devenea true, condiția cădea pe ramura cu DataTable și
+            antetul tabelului gol apărea o fracțiune de secundă între două stări goale
+            — sclipirea văzută la click pe altă zi. Decizia se ia doar pe datele
+            cunoscute; indicatorul de încărcare rămâne `fetching` pe tabel. */}
+        {data && data.total === 0 ? (
           <EmptyState
             icon={<IconCalendarEvent size={24} stroke={1.5} />}
             title={selectedDate === today ? 'Nicio programare azi.' : 'Nicio programare în această zi.'}

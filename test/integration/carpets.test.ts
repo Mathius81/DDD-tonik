@@ -434,6 +434,70 @@ describe('CarpetOrderRepository', () => {
     expect(orders.listPickedUpOn('2026-08-25').map((o) => o.id)).toEqual([azi.id]);
   });
 
+  it('todosForDashboard: numără comenzile gata de livrat și pe cele cu termen depășit, fără dubluri', () => {
+    const gata = orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-20',
+      due_date: null,
+      status: 'gata',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+    const overdue = orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-15',
+      due_date: '2026-08-20', // termen deja depășit (azi = 2026-08-25) și încă nelivrată
+      status: 'in_lucru',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+    // Termen depășit, dar deja livrată — NU trebuie numărată.
+    orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-15',
+      due_date: '2026-08-20',
+      status: 'livrat',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+    // Comandă normală, fără termen depășit și nu „gata" — NU trebuie numărată.
+    orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-25',
+      due_date: '2026-09-01',
+      status: 'in_lucru',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+
+    const summary = orders.todosForDashboard('2026-08-25');
+    expect(summary.badge).toBe(2);
+    const byId = new Map(summary.items.map((i) => [i.order_id, i]));
+    expect(byId.get(gata.id)?.reason).toBe('gata');
+    expect(byId.get(overdue.id)?.reason).toBe('overdue');
+    expect(summary.items).toHaveLength(2);
+  });
+
   it('respinge o comandă pentru un client inexistent (foreign key)', () => {
     expect(() =>
       orders.create({

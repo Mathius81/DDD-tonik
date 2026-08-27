@@ -216,6 +216,19 @@ export interface CarpetDashboardData {
   todayPickups: CarpetOrderListItem[];
 }
 
+/** O comandă de urmărit azi: gata de livrat sau cu termenul depășit. */
+export interface CarpetTodoItem {
+  order_id: number;
+  client_name: string;
+  reason: 'gata' | 'overdue';
+  due_date: string | null;
+}
+
+export interface CarpetTodoSummary {
+  badge: number;
+  items: CarpetTodoItem[];
+}
+
 // ---------- Calendar ----------
 
 export const carpetCalendarMonthFilterSchema = z.object({

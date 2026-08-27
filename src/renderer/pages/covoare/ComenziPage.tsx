@@ -78,7 +78,7 @@ export function ComenziPage() {
     [clientId, debouncedSearch, status, page],
   );
 
-  const isEmpty = !loading && data && data.total === 0 && !debouncedSearch && status === 'all' && !clientId;
+  const isEmpty = data && data.total === 0 && !debouncedSearch && status === 'all' && !clientId;
   const filteredClientName = clientId ? data?.items[0]?.client_name : undefined;
 
   const openCreate = () => {

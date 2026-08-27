@@ -144,7 +144,7 @@ export function MesajePage() {
     [source, debouncedSearch, page],
   );
 
-  const isEmpty = !loading && data && data.total === 0 && !debouncedSearch && source === 'all';
+  const isEmpty = data && data.total === 0 && !debouncedSearch && source === 'all';
 
   return (
     <Stack gap="var(--sp-4)">

@@ -290,10 +290,22 @@ export function OrderFormModal({ opened, onClose, onSaved, order, presetClientId
                     w={110}
                     {...form.getInputProps(`items.${index}.width_m`)}
                   />
-                  <Text size="var(--fs-body)" c="var(--text-muted)" w={90} ta="right">
+                  <Text
+                    size="var(--fs-body)"
+                    c={
+                      typeof items[index].length_m === 'number' && typeof items[index].width_m === 'number'
+                        ? 'var(--text-muted)'
+                        : 'var(--text-faint)'
+                    }
+                    w={90}
+                    ta="right"
+                  >
+                    {/* Cât timp lungimea/lățimea nu sunt completate încă, arătăm „0 mp” estompat
+                        în loc de „—”, care la prima completare a formularului poate fi confundat
+                        cu o eroare de calcul. */}
                     {typeof items[index].length_m === 'number' && typeof items[index].width_m === 'number'
                       ? formatMp(round2((items[index].length_m as number) * (items[index].width_m as number)))
-                      : '—'}
+                      : formatMp(0)}
                   </Text>
                   <ActionIcon
                     variant="subtle"

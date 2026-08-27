@@ -124,6 +124,8 @@ export const IPC = {
     },
     dashboard: {
       get: 'carpets:dashboard:get',
+      /** Comenzi de urmărit azi (gata de livrat / termen depășit) — cardul „De făcut azi”. */
+      todos: 'carpets:dashboard:todos',
     },
     calendar: {
       month: 'carpets:calendar:month',
@@ -167,6 +169,8 @@ export const IPC = {
     },
     dashboard: {
       get: 'tyres:dashboard:get',
+      /** Programările de azi, neprocesate — cardul „De făcut azi”. */
+      todos: 'tyres:dashboard:todos',
     },
     /** Mesaj WhatsApp asistat: deschide wa.me cu textul pregătit, ca în DDD. */
     whatsapp: {

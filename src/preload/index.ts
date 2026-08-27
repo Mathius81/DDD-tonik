@@ -121,6 +121,7 @@ const api = {
     },
     dashboard: {
       get: invoke(IPC.carpets.dashboard.get),
+      todos: invoke(IPC.carpets.dashboard.todos),
     },
     calendar: {
       month: invoke(IPC.carpets.calendar.month),
@@ -162,6 +163,7 @@ const api = {
     },
     dashboard: {
       get: invoke(IPC.tyres.dashboard.get),
+      todos: invoke(IPC.tyres.dashboard.todos),
     },
     whatsapp: {
       send: invoke(IPC.tyres.whatsapp.send),

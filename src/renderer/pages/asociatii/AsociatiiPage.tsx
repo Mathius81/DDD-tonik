@@ -77,7 +77,7 @@ export function AsociatiiPage() {
     [debouncedSearch, status, page],
   );
 
-  const isEmpty = !loading && data && data.total === 0 && !debouncedSearch && status === 'active';
+  const isEmpty = data && data.total === 0 && !debouncedSearch && status === 'active';
   const today = todayIso();
 
   const deactivate = async (a: AssociationListItem) => {

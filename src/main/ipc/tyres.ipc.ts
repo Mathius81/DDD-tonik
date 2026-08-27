@@ -170,6 +170,8 @@ export function registerTyreHandlers(ctx: AppContext): void {
     };
   });
 
+  handle(IPC.tyres.dashboard.todos, null, () => ctx.tyreAppointments.todosForToday(ctx.todayIso()));
+
   // WhatsApp — mod asistat: deschide wa.me cu mesajul pregătit; trimiterea rămâne manuală.
   // Folosit atât din fișa clientului (mesaj liber), cât și din pagina Remindere (mesaj de
   // sezon pregătit) — `source`/`season` doar etichetează rândul din istoric, nu schimbă

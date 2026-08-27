@@ -47,7 +47,7 @@ export function InterventiiPage() {
     [serviceId, page],
   );
 
-  const isEmpty = !loading && data && data.total === 0 && !serviceId;
+  const isEmpty = data && data.total === 0 && !serviceId;
   const today = todayIso();
 
   // Grupare pe zile: separator când se schimbă data (Brief §5.4).
@@ -97,7 +97,13 @@ export function InterventiiPage() {
             onAction={() => setModalOpen(true)}
           />
         ) : (
-          <Table verticalSpacing={6} highlightOnHover>
+          <Table
+            verticalSpacing={6}
+            highlightOnHover
+            // Estompăm lista cât se reîncarcă (ex.: la schimbarea serviciului din filtru).
+            // `Table` simplu nu are prop de încărcare ca `DataTable`, deci semnalăm vizual aici.
+            style={{ opacity: loading ? 0.55 : 1, transition: 'opacity 120ms ease' }}
+          >
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Asociație</Table.Th>

@@ -20,6 +20,7 @@ import {
   type CarpetOrderStatus,
   type CarpetOrderUpdate,
   type CarpetOrderWithItems,
+  type CarpetTodoSummary,
 } from '../../../shared/schemas/carpet';
 import type { Paginated } from '../../../shared/schemas/common';
 import { unaccentRo as unaccent } from '../../../shared/text';
@@ -194,6 +195,43 @@ export class CarpetOrderRepository {
           'SELECT COUNT(*) AS n FROM carpet_orders WHERE pickup_date = ?',
           todayIso,
         )?.n ?? 0,
+    };
+  }
+
+  /**
+   * Comenzile de urmărit azi pentru cardul „De făcut azi” din bara laterală: gata de livrat
+   * SAU cu termen depășit (și nelivrate încă). Un ordin nu e numărat de două ori — verificăm
+   * întâi `gata` — deci o comandă „gata” cu termen deja depășit apare o singură dată, cu
+   * motivul „gata” (mai acționabil: clientul poate veni oricând să o ridice).
+   */
+  todosForDashboard(todayIso: string, limit = 20): CarpetTodoSummary {
+    const where = `(o.status = 'gata' OR (o.due_date IS NOT NULL AND o.due_date < ? AND o.status != 'livrat'))`;
+    const badge =
+      this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM carpet_orders o WHERE ${where}`, todayIso)
+        ?.n ?? 0;
+    const rows = this.db.all<{
+      id: number;
+      client_name: string;
+      status: CarpetOrderStatus;
+      due_date: string | null;
+    }>(
+      `SELECT o.id, c.name AS client_name, o.status, o.due_date
+       FROM carpet_orders o
+       JOIN carpet_clients c ON c.id = o.client_id
+       WHERE ${where}
+       ORDER BY (o.status = 'gata') DESC, o.due_date ASC, o.id DESC
+       LIMIT ?`,
+      todayIso,
+      limit,
+    );
+    return {
+      badge,
+      items: rows.map((r) => ({
+        order_id: r.id,
+        client_name: r.client_name,
+        reason: r.status === 'gata' ? ('gata' as const) : ('overdue' as const),
+        due_date: r.due_date,
+      })),
     };
   }
 

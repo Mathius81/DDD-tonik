@@ -15,6 +15,7 @@ import {
   type TyreAppointmentSetStatus,
   type TyreAppointmentListFilter,
   type TyreAppointmentListItem,
+  type TyreTodoSummary,
 } from '../../../shared/schemas/tyre';
 import type { Paginated } from '../../../shared/schemas/common';
 import { unaccentRo as unaccent } from '../../../shared/text';
@@ -93,6 +94,44 @@ export class TyreAppointmentRepository {
       total,
       page: filter.page,
       pageSize: filter.pageSize,
+    };
+  }
+
+  /**
+   * Programările de azi, încă neprocesate (nu `finalizat`, nu `anulat`) — pentru cardul
+   * „De făcut azi” din bara laterală, spațiul Cauciucuri.
+   */
+  todosForToday(dateIso: string, limit = 20): TyreTodoSummary {
+    const where = `a.appointment_date = ? AND a.status IN ('programat', 'venit')`;
+    const badge =
+      this.db.get<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM tyre_appointments a WHERE ${where}`,
+        dateIso,
+      )?.n ?? 0;
+    const rows = this.db.all<{
+      id: number;
+      plate_number: string;
+      client_name: string;
+      appointment_time: string;
+    }>(
+      `SELECT a.id, v.plate_number AS plate_number, c.name AS client_name, a.appointment_time
+       FROM tyre_appointments a
+       JOIN tyre_vehicles v ON v.id = a.vehicle_id
+       JOIN tyre_clients c ON c.id = v.client_id
+       WHERE ${where}
+       ORDER BY a.appointment_time ASC, a.id ASC
+       LIMIT ?`,
+      dateIso,
+      limit,
+    );
+    return {
+      badge,
+      items: rows.map((r) => ({
+        appointment_id: r.id,
+        plate_number: r.plate_number,
+        client_name: r.client_name,
+        appointment_time: r.appointment_time,
+      })),
     };
   }
 

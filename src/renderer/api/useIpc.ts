@@ -30,6 +30,24 @@ export function useIpcQuery<T>(
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
+  // Detectăm schimbarea dependențelor CHIAR ÎN TIMPUL randării, nu abia în efectul de mai
+  // jos (care rulează după primul paint). Fără asta, la o schimbare rapidă de filtru (ex.:
+  // ziua din Programări) browserul apuca să picteze o fracțiune de secundă `data` VECHI ca și
+  // cum ar fi valid pentru noile dependențe — fără niciun indicator de încărcare — abia apoi
+  // sărea pe starea de încărcare/rezultat nou. De-asta se vedea o „sclipire” (tabelul zilei
+  // vechi apărea și dispărea) la schimbarea zilei/filtrului. Ajustarea stării în timpul
+  // randării e un tipar oficial React („You Might Not Need an Effect”): apelul lui setLoading
+  // de mai jos face ca React să reia randarea sincron, ÎNAINTE de a picta ceva pe ecran, deci
+  // browserul nu apucă niciodată să arate cadrul „vechi, nemarcat ca în curs de încărcare”.
+  const prevDepsRef = useRef(deps);
+  const depsChanged =
+    prevDepsRef.current.length !== deps.length ||
+    prevDepsRef.current.some((d, i) => !Object.is(d, deps[i]));
+  if (depsChanged) {
+    prevDepsRef.current = deps;
+    if (!loading) setLoading(true);
+  }
+
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {

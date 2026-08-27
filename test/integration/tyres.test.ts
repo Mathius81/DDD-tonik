@@ -793,6 +793,49 @@ describe('TyreAppointmentRepository', () => {
     const reloaded = appointments.getById(appointment.id);
     expect(reloaded?.swap_id).toBe(swap.id);
   });
+
+  it('todosForToday: numără doar programările de azi, neprocesate (nu finalizat/anulat)', () => {
+    appointments.create({
+      vehicle_id: vehicleId,
+      appointment_date: '2026-09-01',
+      appointment_time: '11:00',
+      work_type: 'Montaj',
+      season: null,
+      notes: null,
+    });
+    const toFinalize = appointments.create({
+      vehicle_id: vehicleId,
+      appointment_date: '2026-09-01',
+      appointment_time: '08:00',
+      work_type: 'Montaj',
+      season: null,
+      notes: null,
+    });
+    appointments.setStatus({ id: toFinalize.id, status: 'finalizat' });
+    const toCancel = appointments.create({
+      vehicle_id: vehicleId,
+      appointment_date: '2026-09-01',
+      appointment_time: '09:00',
+      work_type: 'Montaj',
+      season: null,
+      notes: null,
+    });
+    appointments.setStatus({ id: toCancel.id, status: 'anulat' });
+    appointments.create({
+      vehicle_id: vehicleId,
+      appointment_date: '2026-09-02', // altă zi — nu trebuie numărată
+      appointment_time: '08:00',
+      work_type: 'Montaj',
+      season: null,
+      notes: null,
+    });
+
+    const summary = appointments.todosForToday('2026-09-01');
+    expect(summary.badge).toBe(1);
+    expect(summary.items).toHaveLength(1);
+    expect(summary.items[0].plate_number).toBe('B 123 ABC');
+    expect(summary.items[0].appointment_time).toBe('11:00');
+  });
 });
 
 describe('TyreSwapRepository — schimb de sezon atomic', () => {
