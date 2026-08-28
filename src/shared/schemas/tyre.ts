@@ -354,6 +354,8 @@ export type TyreSwapCreate = z.infer<typeof tyreSwapCreateSchema>;
 
 export const tyreSwapListFilterSchema = z.object({
   vehicle_id: idSchema.optional(),
+  /** Filtru opțional pe sezonul spre care s-a făcut schimbul (vezi pagina Schimburi). */
+  to_season: z.enum(tyreSeasons).optional(),
   search: z.string().trim().max(200).optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(200).default(50),

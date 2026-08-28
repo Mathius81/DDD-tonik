@@ -22,6 +22,7 @@ import {
   IconCar,
   IconClockHour4,
   IconBuildingWarehouse,
+  IconTransferIn,
 } from '@tabler/icons-react';
 
 /**
@@ -126,6 +127,13 @@ const cauciucuriNav: WorkspaceNavItem[] = [
     path: 'programari',
     label: 'Programări',
     icon: IconClockHour4,
+    section: 'Operațiuni',
+  },
+  {
+    key: 'schimburi',
+    path: 'schimburi',
+    label: 'Schimburi',
+    icon: IconTransferIn,
     section: 'Operațiuni',
   },
   {

@@ -12,13 +12,14 @@ import { Stack, Group, Button, TextInput, Text, Card, ActionIcon, Tooltip, Badge
 import { DataTable } from 'mantine-datatable';
 import { useSearchParams } from 'react-router-dom';
 import { useDebouncedValue } from '@mantine/hooks';
-import { IconPlus, IconSearch, IconCar, IconX, IconNote, IconPencil } from '@tabler/icons-react';
+import { IconPlus, IconSearch, IconCar, IconX, IconNote, IconPencil, IconTransferIn } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { useIpcQuery } from '../../api/useIpc';
 import { EmptyState } from '../../components/EmptyState';
 import { PageHeader } from '../../components/PageHeader';
 import { pluralRo } from '../../../shared/text';
 import { VehicleFormModal } from './VehicleFormModal';
+import { SwapFormModal } from './SwapFormModal';
 import { TyreWhatsappButton } from './TyreWhatsappButton';
 import { defaultVehicleWhatsappMessage } from './cauciucuri-ui';
 import type { TyreVehicleListItem } from '../../../shared/schemas/tyre';
@@ -41,6 +42,9 @@ export function MasiniPage() {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<TyreVehicleListItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // Drumul cel mai scurt către schimbul de sezon: caută numărul, apasă schimb — fără
+  // să treacă mai întâi printr-o programare fictivă (vezi și pagina Schimburi).
+  const [swapFor, setSwapFor] = useState<TyreVehicleListItem | null>(null);
 
   useEffect(() => {
     searchRef.current?.focus();
@@ -215,7 +219,7 @@ export function MasiniPage() {
               {
                 accessor: 'actions',
                 title: '',
-                width: 80,
+                width: 110,
                 render: (r) => (
                   <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
                     <TyreWhatsappButton
@@ -224,6 +228,16 @@ export function MasiniPage() {
                       subtitle={`${r.client_name} · ${r.plate_number}`}
                       defaultMessage={defaultVehicleWhatsappMessage(r.client_name, r.plate_number)}
                     />
+                    <Tooltip label="Înregistrează schimbul de sezon">
+                      <ActionIcon
+                        variant="light"
+                        color="teal"
+                        aria-label="Înregistrează schimbul de sezon"
+                        onClick={() => setSwapFor(r)}
+                      >
+                        <IconTransferIn size={16} />
+                      </ActionIcon>
+                    </Tooltip>
                     <ActionIcon
                       variant="subtle"
                       color="gray"
@@ -248,6 +262,18 @@ export function MasiniPage() {
         onClose={() => setModalOpen(false)}
         onSaved={() => {
           setModalOpen(false);
+          reload();
+        }}
+      />
+
+      <SwapFormModal
+        key={swapFor ? `swap-${swapFor.id}` : 'swap-none'}
+        opened={!!swapFor}
+        presetVehicleId={swapFor?.id}
+        presetVehicleLabel={swapFor ? `${swapFor.plate_number} — ${swapFor.client_name}` : undefined}
+        onClose={() => setSwapFor(null)}
+        onSaved={() => {
+          setSwapFor(null);
           reload();
         }}
       />

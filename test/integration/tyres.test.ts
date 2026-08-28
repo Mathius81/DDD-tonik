@@ -1127,6 +1127,174 @@ describe('TyreSwapRepository — schimb de sezon atomic', () => {
   });
 });
 
+describe('TyreSwapRepository — listare (istoric): paginare, căutare, filtru pe sezon', () => {
+  let db: Db;
+  let cleanup: () => void;
+  let clients: TyreClientRepository;
+  let vehicles: TyreVehicleRepository;
+  let swaps: TyreSwapRepository;
+
+  beforeEach(() => {
+    const t = createTestDb();
+    db = t.db;
+    cleanup = t.cleanup;
+    clients = new TyreClientRepository(db);
+    vehicles = new TyreVehicleRepository(db);
+    swaps = new TyreSwapRepository(db);
+  });
+
+  afterEach(() => cleanup());
+
+  function makeVehicle(name: string, phone: string, plate: string): number {
+    const client = clients.create({ name, phone, notes: null });
+    return vehicles.create({
+      client_id: client.id,
+      client_name: null,
+      client_phone: null,
+      plate_number: plate,
+      make: null,
+      model: null,
+      notes: null,
+    }).id;
+  }
+
+  // Pagina Schimburi permite „Schimb nou” direct, fără nicio programare în prealabil
+  // (exact fluxul real: clientul vine nepogramat la tejghea) — verificăm explicit că
+  // appointment_id rămâne null și că mutarea seturilor funcționează la fel ca atunci
+  // când schimbul pornește dintr-o programare.
+  it('înregistrează un schimb FĂRĂ programare asociată (appointment_id null) și mută corect seturile', () => {
+    const vehicleId = makeVehicle('Popescu Ion', '0712345678', 'B 123 ABC');
+    const swap = swaps.create({
+      vehicle_id: vehicleId,
+      appointment_id: null,
+      swap_date: '2026-09-01',
+      to_season: 'iarna',
+      mounted_source: 'adus_de_client',
+      mounted_storage_id: null,
+      removed_disposition: 'depozit',
+      removed_size: '205/55 R16',
+      removed_brand: 'Michelin',
+      removed_quantity: 4,
+      notes: null,
+    });
+
+    expect(swap.appointment_id).toBeNull();
+    expect(swap.removed_storage_id).not.toBeNull();
+
+    const found = swaps.getById(swap.id);
+    expect(found?.appointment_id).toBeNull();
+    expect(found?.plate_number).toBe('B 123 ABC');
+    expect(found?.client_name).toBe('Popescu Ion');
+
+    const listed = swaps.list({ page: 1, pageSize: 50 });
+    expect(listed.total).toBe(1);
+    expect(listed.items[0].appointment_id).toBeNull();
+  });
+
+  it('paginează istoricul, cel mai recent schimb primul', () => {
+    const vehicleId = makeVehicle('Popescu Ion', '0712345678', 'B 123 ABC');
+    ['2026-01-01', '2026-03-01', '2026-05-01'].forEach((swap_date) => {
+      swaps.create({
+        vehicle_id: vehicleId,
+        appointment_id: null,
+        swap_date,
+        to_season: 'iarna',
+        mounted_source: 'adus_de_client',
+        mounted_storage_id: null,
+        removed_disposition: 'acasa',
+        removed_size: null,
+        removed_brand: null,
+        removed_quantity: 4,
+        notes: null,
+      });
+    });
+
+    const page1 = swaps.list({ page: 1, pageSize: 2 });
+    expect(page1.total).toBe(3);
+    expect(page1.items).toHaveLength(2);
+    expect(page1.items.map((s) => s.swap_date)).toEqual(['2026-05-01', '2026-03-01']);
+
+    const page2 = swaps.list({ page: 2, pageSize: 2 });
+    expect(page2.items).toHaveLength(1);
+    expect(page2.items[0].swap_date).toBe('2026-01-01');
+  });
+
+  it('caută în istoric după numărul mașinii, numele clientului (fără diacritice) sau telefon', () => {
+    const vehicleA = makeVehicle('Ionescu Ștefan', '0722222222', 'B 123 ABC');
+    const vehicleB = makeVehicle('Vasilescu Andrei', '0733333333', 'CJ 99 XYZ');
+
+    swaps.create({
+      vehicle_id: vehicleA,
+      appointment_id: null,
+      swap_date: '2026-09-01',
+      to_season: 'iarna',
+      mounted_source: 'adus_de_client',
+      mounted_storage_id: null,
+      removed_disposition: 'acasa',
+      removed_size: null,
+      removed_brand: null,
+      removed_quantity: 4,
+      notes: null,
+    });
+    swaps.create({
+      vehicle_id: vehicleB,
+      appointment_id: null,
+      swap_date: '2026-09-02',
+      to_season: 'vara',
+      mounted_source: 'adus_de_client',
+      mounted_storage_id: null,
+      removed_disposition: 'acasa',
+      removed_size: null,
+      removed_brand: null,
+      removed_quantity: 4,
+      notes: null,
+    });
+
+    expect(swaps.list({ search: 'stefan', page: 1, pageSize: 50 }).total).toBe(1);
+    expect(swaps.list({ search: 'b123abc', page: 1, pageSize: 50 }).total).toBe(1);
+    expect(swaps.list({ search: '07333', page: 1, pageSize: 50 }).total).toBe(1);
+    expect(swaps.list({ search: 'nimeni', page: 1, pageSize: 50 }).total).toBe(0);
+  });
+
+  it('filtrează după sezonul spre care s-a făcut schimbul (to_season)', () => {
+    const vehicleId = makeVehicle('Popescu Ion', '0712345678', 'B 123 ABC');
+    swaps.create({
+      vehicle_id: vehicleId,
+      appointment_id: null,
+      swap_date: '2026-05-01',
+      to_season: 'vara',
+      mounted_source: 'adus_de_client',
+      mounted_storage_id: null,
+      removed_disposition: 'acasa',
+      removed_size: null,
+      removed_brand: null,
+      removed_quantity: 4,
+      notes: null,
+    });
+    swaps.create({
+      vehicle_id: vehicleId,
+      appointment_id: null,
+      swap_date: '2026-10-01',
+      to_season: 'iarna',
+      mounted_source: 'adus_de_client',
+      mounted_storage_id: null,
+      removed_disposition: 'acasa',
+      removed_size: null,
+      removed_brand: null,
+      removed_quantity: 4,
+      notes: null,
+    });
+
+    const iarna = swaps.list({ to_season: 'iarna', page: 1, pageSize: 50 });
+    expect(iarna.total).toBe(1);
+    expect(iarna.items[0].swap_date).toBe('2026-10-01');
+
+    const vara = swaps.list({ to_season: 'vara', page: 1, pageSize: 50 });
+    expect(vara.total).toBe(1);
+    expect(vara.items[0].swap_date).toBe('2026-05-01');
+  });
+});
+
 describe('Remindere de sezon — gardă anti-spam (o singură dată per client, per season_key)', () => {
   let db: Db;
   let cleanup: () => void;

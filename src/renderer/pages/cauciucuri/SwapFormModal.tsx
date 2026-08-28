@@ -87,6 +87,11 @@ export function SwapFormModal({
   const vehicleLocked = !!presetVehicleId;
   const [vehicles, setVehicles] = useState<TyreVehicleListItem[]>([]);
   const [storageSets, setStorageSets] = useState<TyreStorageListItem[]>([]);
+  // Protecție la dublu-click pe „Înregistrează schimbul”: fără ea, un al doilea click
+  // înainte ca răspunsul IPC să revină ar putea crea un schimb duplicat + un rând
+  // duplicat în depozit (create() rulează într-o tranzacție, dar nimic nu împiedica
+  // butonul să pornească a doua cerere cât timp prima era încă în zbor).
+  const [submitting, setSubmitting] = useState(false);
 
   const form = useForm({
     initialValues: {
@@ -166,27 +171,40 @@ export function SwapFormModal({
   );
 
   const submit = form.onSubmit(async (values) => {
-    const payload = {
-      vehicle_id: Number(values.vehicle_id),
-      appointment_id: presetAppointmentId ?? null,
-      swap_date: toIso(values.swap_date)!,
-      to_season: values.to_season,
-      mounted_source: values.mounted_source,
-      mounted_storage_id: values.mounted_source === 'din_depozit' ? Number(values.mounted_storage_id) : null,
-      removed_disposition: values.removed_disposition,
-      removed_size: values.removed_disposition === 'depozit' ? values.removed_size : null,
-      removed_brand: values.removed_disposition === 'depozit' ? values.removed_brand || null : null,
-      removed_quantity: values.removed_disposition === 'depozit' ? Number(values.removed_quantity) : null,
-      notes: values.notes || null,
-    };
-    const saved = await runMutation<TyreSwapListItem>(ddd.tyres.swaps.create(payload), 'Schimbul a fost înregistrat.');
-    if (saved) {
-      onSaved(saved);
+    if (submitting) return; // gardă suplimentară — butonul e oricum disabled cât timp trimite
+    setSubmitting(true);
+    try {
+      const payload = {
+        vehicle_id: Number(values.vehicle_id),
+        appointment_id: presetAppointmentId ?? null,
+        swap_date: toIso(values.swap_date)!,
+        to_season: values.to_season,
+        mounted_source: values.mounted_source,
+        mounted_storage_id: values.mounted_source === 'din_depozit' ? Number(values.mounted_storage_id) : null,
+        removed_disposition: values.removed_disposition,
+        removed_size: values.removed_disposition === 'depozit' ? values.removed_size : null,
+        removed_brand: values.removed_disposition === 'depozit' ? values.removed_brand || null : null,
+        removed_quantity: values.removed_disposition === 'depozit' ? Number(values.removed_quantity) : null,
+        notes: values.notes || null,
+      };
+      const saved = await runMutation<TyreSwapListItem>(ddd.tyres.swaps.create(payload), 'Schimbul a fost înregistrat.');
+      if (saved) {
+        onSaved(saved);
+      }
+    } finally {
+      setSubmitting(false);
     }
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Înregistrează schimb de sezon" size="lg">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Înregistrează schimb de sezon"
+      size="lg"
+      closeOnClickOutside={!submitting}
+      closeOnEscape={!submitting}
+    >
       <form onSubmit={submit}>
         <Stack>
           {vehicleLocked ? (
@@ -269,10 +287,12 @@ export function SwapFormModal({
           <Textarea label="Observații" autosize minRows={2} {...form.getInputProps('notes')} />
 
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
+            <Button variant="default" onClick={onClose} disabled={submitting}>
               Renunță
             </Button>
-            <Button type="submit">Înregistrează schimbul</Button>
+            <Button type="submit" loading={submitting} disabled={submitting}>
+              Înregistrează schimbul
+            </Button>
           </Group>
         </Stack>
       </form>

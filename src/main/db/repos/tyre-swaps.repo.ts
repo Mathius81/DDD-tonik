@@ -44,6 +44,10 @@ export class TyreSwapRepository {
       where.push('sw.vehicle_id = ?');
       params.push(filter.vehicle_id);
     }
+    if (filter.to_season) {
+      where.push('sw.to_season = ?');
+      params.push(filter.to_season);
+    }
     if (filter.search) {
       const term = filter.search.trim();
       where.push(`(

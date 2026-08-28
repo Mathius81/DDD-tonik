@@ -33,6 +33,7 @@ import { ClientiPage as CauciucuriClientiPage } from './pages/cauciucuri/Clienti
 import { MasiniPage } from './pages/cauciucuri/MasiniPage';
 import { HotelPage } from './pages/cauciucuri/HotelPage';
 import { ProgramariPage } from './pages/cauciucuri/ProgramariPage';
+import { SchimburiPage } from './pages/cauciucuri/SchimburiPage';
 import { ReminderePage as CauciucuriReminderePage } from './pages/cauciucuri/ReminderePage';
 import { MesajePage as CauciucuriMesajePage } from './pages/cauciucuri/MesajePage';
 import { SetariPage as CauciucuriSetariPage } from './pages/cauciucuri/SetariPage';
@@ -113,6 +114,7 @@ const router = createHashRouter([
       { path: 'clienti', element: <CauciucuriClientiPage /> },
       { path: 'masini', element: <MasiniPage /> },
       { path: 'programari', element: <ProgramariPage /> },
+      { path: 'schimburi', element: <SchimburiPage /> },
       { path: 'hotel', element: <HotelPage /> },
       // Ruta veche, dinaintea redenumirii „Depozit” → „Hotel cauciucuri”. Rămâne
       // salvată în localStorage ca ultimă pagină vizitată, iar fără redirect ar
@@ -126,6 +128,7 @@ const router = createHashRouter([
         'clienti',
         'masini',
         'programari',
+        'schimburi',
         'hotel',
         'remindere',
         'mesaje',
