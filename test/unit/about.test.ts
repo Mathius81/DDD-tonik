@@ -111,6 +111,45 @@ describe('about.ipc', () => {
     return (await fn({}, payload)) as IpcResult<T>;
   }
 
+  describe('about:logRendererError', () => {
+    // `silentLogger` e tipat `as never` mai sus doar ca să treacă de tipurile
+    // constructorului `AppContext`; obiectul de dedesubt tot are `vi.fn()`.
+    const loggerSpy = silentLogger as unknown as { error: ReturnType<typeof vi.fn> };
+
+    it('scrie eroarea neprevăzută din renderer în log, cu mesaj și rută', async () => {
+      const result = await invoke<{ logged: boolean }>(IPC.about.logRendererError, {
+        message: 'Cannot read properties of null (reading value)',
+        stack: 'Error: boom\n    at Componenta (App.tsx:10:5)',
+        route: '/ddd/asociatii/12',
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.logged).toBe(true);
+      expect(loggerSpy.error).toHaveBeenCalledWith(
+        expect.stringContaining('Cannot read properties of null (reading value)'),
+        'Error: boom\n    at Componenta (App.tsx:10:5)',
+      );
+      expect(loggerSpy.error).toHaveBeenCalledWith(
+        expect.stringContaining('/ddd/asociatii/12'),
+        expect.anything(),
+      );
+    });
+
+    it('acceptă un payload minimal, fără stivă sau rută', async () => {
+      const result = await invoke<{ logged: boolean }>(IPC.about.logRendererError, {
+        message: 'eroare fără mai multe detalii',
+      });
+      expect(result.ok).toBe(true);
+      expect(loggerSpy.error).toHaveBeenCalledWith(expect.stringContaining('eroare fără mai multe detalii'), undefined);
+    });
+
+    it('respinge un payload fără mesaj', async () => {
+      const result = await invoke(IPC.about.logRendererError, { stack: 'doar stivă' });
+      expect(result.ok).toBe(false);
+    });
+  });
+
   describe('about:diagnostics', () => {
     it('numără rândurile din toate tabelele relevante și include versiunea schemei', async () => {
       saveIntervention(

@@ -208,7 +208,10 @@ export function SabloaneTab() {
             <TextInput
               label="Denumire"
               value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.currentTarget.value }))}
+              onChange={(e) => {
+                const v = e.currentTarget.value;
+                setForm((f) => ({ ...f, name: v }));
+              }}
               style={{ flex: 1 }}
             />
             <Select
@@ -225,7 +228,10 @@ export function SabloaneTab() {
             <TextInput
               label="Subiect email"
               value={form.subject}
-              onChange={(e) => setForm((f) => ({ ...f, subject: e.currentTarget.value }))}
+              onChange={(e) => {
+                const v = e.currentTarget.value;
+                setForm((f) => ({ ...f, subject: v }));
+              }}
             />
           )}
 
@@ -234,7 +240,10 @@ export function SabloaneTab() {
             minRows={6}
             autosize
             value={form.body}
-            onChange={(e) => setForm((f) => ({ ...f, body: e.currentTarget.value }))}
+            onChange={(e) => {
+              const v = e.currentTarget.value;
+              setForm((f) => ({ ...f, body: v }));
+            }}
           />
 
           <div>
@@ -274,7 +283,10 @@ export function SabloaneTab() {
             <Switch
               label="Șablon activ (folosit automat la trimitere)"
               checked={form.active}
-              onChange={(e) => setForm((f) => ({ ...f, active: e.currentTarget.checked }))}
+              onChange={(e) => {
+                const v = e.currentTarget.checked;
+                setForm((f) => ({ ...f, active: v }));
+              }}
             />
           )}
 

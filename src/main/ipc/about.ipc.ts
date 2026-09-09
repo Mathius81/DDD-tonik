@@ -31,6 +31,7 @@ import type {
   AboutTopAssociation,
 } from '../../shared/schemas/about';
 import {
+  logRendererErrorSchema,
   resetReportGuardSchema,
   secretMenuChangePasswordSchema,
   secretMenuSetPasswordSchema,
@@ -237,6 +238,15 @@ export function registerAboutHandlers(ctx: AppContext, license: LicenseService):
       associations,
       interventions,
     };
+  });
+
+  // Plasa de siguranță a `errorElement`-ului din renderer (vezi EroareNeprevazuta.tsx):
+  // omul vede un ecran liniștitor, dar eroarea reală tot ajunge în log, ca la orice
+  // altă eroare — utilă dacă trebuie trimisă mai departe pentru diagnostic.
+  handle(IPC.about.logRendererError, logRendererErrorSchema, ({ message, stack, route }) => {
+    const unde = route ? ` (ruta: ${route})` : '';
+    ctx.logger.error(`Eroare neprevăzută în interfață${unde}: ${message}`, stack);
+    return { logged: true };
   });
 
   // Tab „Diagnostic” din meniul secret — ce ar întreba un telefon de suport.

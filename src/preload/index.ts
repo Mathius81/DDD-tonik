@@ -98,6 +98,7 @@ const api = {
   },
   about: {
     get: invoke(IPC.about.get),
+    logRendererError: invoke(IPC.about.logRendererError),
     diagnostics: invoke(IPC.about.diagnostics),
     stats: invoke(IPC.about.stats),
     resetReportGuard: invoke(IPC.about.resetReportGuard),

@@ -24,6 +24,20 @@ export interface AboutInfo {
   interventions: number;
 }
 
+/**
+ * Payload-ul trimis de `EroareNeprevazuta` (errorElement-ul router-ului) când
+ * un ecran neprevăzut a stricat randarea — plasa de siguranță din spatele
+ * ecranului liniștitor arătat utilizatorului. Limite generoase, dar finite,
+ * ca un mesaj/stivă neobișnuit de lungi să nu umple logul dintr-o dată.
+ */
+export const logRendererErrorSchema = z.object({
+  message: z.string().min(1).max(2000),
+  stack: z.string().max(20000).optional(),
+  /** Ruta din aplicație unde a apărut eroarea (ex. '/ddd/asociatii/12'). */
+  route: z.string().max(500).optional(),
+});
+export type LogRendererErrorInput = z.infer<typeof logRendererErrorSchema>;
+
 /** Numărul de rânduri pe fiecare tabel — folosit în tab-ul „Diagnostic”. */
 export interface AboutTableCounts {
   associations: number;

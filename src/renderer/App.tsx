@@ -20,6 +20,7 @@ import { ReminderePage } from './pages/remindere/ReminderePage';
 import { MesajePage } from './pages/mesaje/MesajePage';
 import { SetariPage } from './pages/setari/SetariPage';
 import { LicenseGate } from './components/LicenseGate';
+import { EroareNeprevazuta } from './components/EroareNeprevazuta';
 import { CovoarePlaceholder } from './pages/covoare/CovoarePlaceholder';
 import { CovoareDashboardPage } from './pages/covoare/CovoareDashboardPage';
 import { ClientiPage } from './pages/covoare/ClientiPage';
@@ -69,12 +70,28 @@ function placeholderChildren(
     );
 }
 
+/**
+ * Înfășoară paginile unui spațiu de lucru într-o rută fără cale proprie
+ * („pathless” — nu adaugă niciun segment în URL), doar ca să-i dea propriul
+ * `errorElement`. Așa, dacă O PAGINĂ aruncă o eroare neprevăzută, doar zona
+ * de conținut e înlocuită cu ecranul de eroare — bara de sus și meniul din
+ * `AppShellLayout` (părintele acestei rute) rămân vizibile și funcționale,
+ * ca omul să poată naviga în continuare spre altă pagină.
+ */
+function withErrorBoundary(children: RouteObject[]): RouteObject[] {
+  return [{ errorElement: <EroareNeprevazuta />, children }];
+}
+
 const router = createHashRouter([
-  { path: '/', element: <RootRedirect /> },
+  { path: '/', element: <RootRedirect />, errorElement: <EroareNeprevazuta /> },
   {
     path: '/ddd',
     element: <AppShellLayout />,
-    children: [
+    // Dacă randarea AppShellLayout însuși aruncă (nu doar a unei pagini din
+    // meniu), meniul nu mai poate fi afișat oricum — de-aia acest boundary
+    // înlocuiește tot ecranul, spre deosebire de cel din withErrorBoundary.
+    errorElement: <EroareNeprevazuta />,
+    children: withErrorBoundary([
       { index: true, element: <DashboardPage /> },
       { path: 'asociatii', element: <AsociatiiPage /> },
       { path: 'asociatii/:id', element: <AsociatieDetaliiPage /> },
@@ -84,12 +101,13 @@ const router = createHashRouter([
       { path: 'remindere', element: <ReminderePage /> },
       { path: 'mesaje', element: <MesajePage /> },
       { path: 'setari', element: <SetariPage /> },
-    ],
+    ]),
   },
   {
     path: '/covoare',
     element: <AppShellLayout />,
-    children: [
+    errorElement: <EroareNeprevazuta />,
+    children: withErrorBoundary([
       { index: true, element: <CovoareDashboardPage /> },
       { path: 'clienti', element: <ClientiPage /> },
       { path: 'comenzi', element: <ComenziPage /> },
@@ -106,12 +124,13 @@ const router = createHashRouter([
         'mesaje',
         'setari',
       ]),
-    ],
+    ]),
   },
   {
     path: '/cauciucuri',
     element: <AppShellLayout />,
-    children: [
+    errorElement: <EroareNeprevazuta />,
+    children: withErrorBoundary([
       { index: true, element: <CauciucuriDashboardPage /> },
       { path: 'clienti', element: <CauciucuriClientiPage /> },
       { path: 'masini', element: <MasiniPage /> },
@@ -136,18 +155,18 @@ const router = createHashRouter([
         'mesaje',
         'setari',
       ]),
-    ],
+    ]),
   },
   // Rute vechi fără prefix de spațiu — main trimite astfel de căi din notificări
   // (events:navigate) și din meniul OS; le redirectăm la echivalentul din /ddd.
   { path: '/asociatii', element: <Navigate to="/ddd/asociatii" replace /> },
-  { path: '/asociatii/:id', element: <LegacyAsociatieRedirect /> },
+  { path: '/asociatii/:id', element: <LegacyAsociatieRedirect />, errorElement: <EroareNeprevazuta /> },
   { path: '/interventii', element: <Navigate to="/ddd/interventii" replace /> },
   { path: '/calendar', element: <Navigate to="/ddd/calendar" replace /> },
   { path: '/remindere', element: <Navigate to="/ddd/remindere" replace /> },
   { path: '/mesaje', element: <Navigate to="/ddd/mesaje" replace /> },
   { path: '/setari', element: <Navigate to="/ddd/setari" replace /> },
-  { path: '*', element: <RootRedirect /> },
+  { path: '*', element: <RootRedirect />, errorElement: <EroareNeprevazuta /> },
 ]);
 
 export function App() {

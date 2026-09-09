@@ -102,6 +102,12 @@ export const IPC = {
   /** Date de autor + statistici personale („Despre” și meniul secret al autorului). */
   about: {
     get: 'about:get',
+    /**
+     * Plasa de siguranță a `errorElement`-ului din renderer: trimite spre main
+     * mesajul + stiva unei erori neprevăzute prinse de router, ca să rămână
+     * urmă în log și după ce omul închide ecranul de eroare.
+     */
+    logRendererError: 'about:logRendererError',
     /** Ce ar întreba un telefon de suport — tab „Diagnostic”. */
     diagnostics: 'about:diagnostics',
     /** Bilanțul personal al utilizatorului — tab „Statisticile tale”. */
