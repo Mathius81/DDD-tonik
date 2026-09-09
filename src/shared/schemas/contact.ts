@@ -74,6 +74,13 @@ export interface AdministratorFollowupStatus {
   overdue: boolean;
 }
 
+/** Ultima intervenție efectuată pentru un serviciu al unei asociații (istoric, „ce s-a făcut”). */
+export interface AdministratorLastIntervention {
+  service_name: string;
+  /** Data ultimei intervenții pentru acest (asociație, serviciu) — MAX(performed_date). */
+  last_performed_date: string;
+}
+
 /** Situația unei asociații din grupul unui administrator. */
 export interface AdministratorAssociationSummary {
   association_id: number;
@@ -83,6 +90,12 @@ export interface AdministratorAssociationSummary {
   contact_id: number;
   /** Follow-up-uri deschise (pending/contacted/scheduled); gol înseamnă „la zi”. */
   open_followups: AdministratorFollowupStatus[];
+  /**
+   * Ultima intervenție per serviciu (istoric — „ce s-a făcut”), una per serviciu distinct,
+   * sortate alfabetic după numele serviciului. Gol pentru o asociație abia introdusă, fără
+   * nicio intervenție înregistrată încă.
+   */
+  last_interventions: AdministratorLastIntervention[];
 }
 
 /** Un administrator (identificat după telefon normalizat) cu toate asociațiile lui. */

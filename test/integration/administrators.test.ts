@@ -55,6 +55,21 @@ function seedFollowup(
   );
 }
 
+function seedIntervention(
+  db: Db,
+  associationId: number,
+  serviceIdVal: number,
+  performedDate: string,
+): void {
+  db.run(
+    `INSERT INTO interventions (association_id, service_id, performed_date, interval_months)
+     VALUES (?, ?, ?, 3)`,
+    associationId,
+    serviceIdVal,
+    performedDate,
+  );
+}
+
 describe('ContactRepository — grupare administratori după telefon (spec: identificare automată, fără migrare de date)', () => {
   let db: Db;
   let cleanup: () => void;
@@ -179,6 +194,58 @@ describe('ContactRepository — grupare administratori după telefon (spec: iden
     expect(byName.get('Bloc La Zi')!.open_followups).toEqual([]);
   });
 
+  it('calculează ultima intervenție per (asociație, serviciu) — MAX(performed_date), nu ultima inserată', () => {
+    const a1 = seedAssociation(db, 'Bloc A1');
+    seedContact(db, a1, 'Ion Popescu', '0722111222');
+
+    const deratizare = serviceId(db, 'Deratizare');
+    const dezinsectie = serviceId(db, 'Dezinsecție');
+
+    // Inserate în ordine „greșită” (cea mai veche ultima) — MAX(performed_date) trebuie să
+    // aleagă corect data cea mai recentă, nu ultimul rând inserat.
+    seedIntervention(db, a1, deratizare, '2026-01-10');
+    seedIntervention(db, a1, deratizare, '2026-03-12'); // cea mai recentă pentru Deratizare
+    seedIntervention(db, a1, deratizare, '2026-02-01');
+    seedIntervention(db, a1, dezinsectie, '2026-08-20'); // singura pentru Dezinsecție
+
+    const group = repo.getAdministratorGroupByPhone('0722111222', TODAY)!;
+    const a = group.associations[0];
+    const byService = new Map(a.last_interventions.map((li) => [li.service_name, li.last_performed_date]));
+    expect(byService.get('Deratizare')).toBe('2026-03-12');
+    expect(byService.get('Dezinsecție')).toBe('2026-08-20');
+    expect(a.last_interventions).toHaveLength(2); // câte un rând per serviciu distinct, nu per intervenție
+  });
+
+  it('o asociație abia introdusă, fără nicio intervenție, întoarce last_interventions gol', () => {
+    const a1 = seedAssociation(db, 'Bloc Nou');
+    seedContact(db, a1, 'Ion Popescu', '0722111222');
+
+    const group = repo.getAdministratorGroupByPhone('0722111222', TODAY)!;
+    expect(group.associations[0].last_interventions).toEqual([]);
+  });
+
+  it('NU face o interogare per asociație pentru istoricul de intervenții (batched, nu N+1)', () => {
+    // 5 asociații ale aceluiași administrator, fiecare cu intervenții pe servicii diferite —
+    // numărul de interogări SQL nu trebuie să crească proporțional cu numărul de asociații.
+    const deratizare = serviceId(db, 'Deratizare');
+    const associationIds: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const id = seedAssociation(db, `Bloc ${i}`);
+      seedContact(db, id, 'Ion Popescu', '0722111222');
+      seedIntervention(db, id, deratizare, '2026-01-01');
+      associationIds.push(id);
+    }
+
+    const spy = vi.spyOn(db, 'all');
+    const group = repo.getAdministratorGroupByPhone('0722111222', TODAY)!;
+    expect(group.associations_count).toBe(5);
+
+    // Interogări așteptate, indiferent de numărul de asociații: contacte, follow-up-uri
+    // (IN batched), intervenții (IN batched) — un număr FIX, nu unul care crește cu N.
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(3);
+    spy.mockRestore();
+  });
+
   it('getAdministratorGroupsForPhones mapează rezultatul după telefonul BRUT primit, indiferent de format', () => {
     const a1 = seedAssociation(db, 'Bloc A1');
     const a2 = seedAssociation(db, 'Bloc B3');
@@ -244,6 +311,7 @@ describe('buildAdministratorSituationMessage — text agregat (toate asociațiil
         association_active: true,
         contact_id: 10,
         open_followups: [{ service_name: 'Deratizare', due_date: '2026-08-01', overdue: true }],
+        last_interventions: [], // asociație abia introdusă — nicio intervenție încă
       },
       {
         association_id: 2,
@@ -251,6 +319,7 @@ describe('buildAdministratorSituationMessage — text agregat (toate asociațiil
         association_active: true,
         contact_id: 20,
         open_followups: [{ service_name: 'Dezinsecție', due_date: '2026-10-20', overdue: false }],
+        last_interventions: [],
       },
       {
         association_id: 3,
@@ -258,6 +327,7 @@ describe('buildAdministratorSituationMessage — text agregat (toate asociațiil
         association_active: true,
         contact_id: 30,
         open_followups: [],
+        last_interventions: [],
       },
     ],
     associations_count: 3,
@@ -280,6 +350,94 @@ describe('buildAdministratorSituationMessage — text agregat (toate asociațiil
   it('omite rândul cu numele firmei dacă nu e completat în Setări', () => {
     const text = buildAdministratorSituationMessage(group, '0722000000', '');
     expect(text.trim().endsWith('Pentru programare ne puteți contacta la 0722000000.')).toBe(true);
+  });
+});
+
+describe('buildAdministratorSituationMessage — și ce s-a făcut, nu doar ce urmează (cerința clientului)', () => {
+  const groupWithHistory: AdministratorGroup = {
+    phone: '40722111222',
+    phone_display: '0722111222',
+    display_name: 'Ion Popescu',
+    names: ['Ion Popescu'],
+    associations: [
+      {
+        // Serviciu cu istoric ȘI urmărire deschisă → „făcută X, scadentă/restantă Y” pe același rând.
+        association_id: 1,
+        association_name: 'Bloc A1',
+        association_active: true,
+        contact_id: 10,
+        open_followups: [{ service_name: 'Deratizare', due_date: '2026-10-15', overdue: false }],
+        last_interventions: [{ service_name: 'Deratizare', last_performed_date: '2026-03-12' }],
+      },
+      {
+        // Complet la zi, dar cu istoric → menționăm scurt ultima intervenție, nu doar „la zi”.
+        association_id: 2,
+        association_name: 'Bloc C7',
+        association_active: true,
+        contact_id: 20,
+        open_followups: [],
+        last_interventions: [{ service_name: 'Dezinsecție', last_performed_date: '2026-08-20' }],
+      },
+    ],
+    associations_count: 2,
+    overdue_count: 0,
+    upcoming_count: 1,
+    ok_count: 1,
+  };
+
+  it('combină, per serviciu, ultima intervenție cu următoarea scadență', () => {
+    const text = buildAdministratorSituationMessage(groupWithHistory, '0722000000', 'Firma Test SRL');
+    expect(text).toContain(
+      `• Bloc A1 — Deratizare făcută ${formatRo('2026-03-12')}, scadentă ${formatRo('2026-10-15')}`,
+    );
+  });
+
+  it('pentru o asociație la zi cu istoric arată scurt ultima intervenție, nu doar „la zi”', () => {
+    const text = buildAdministratorSituationMessage(groupWithHistory, '0722000000', 'Firma Test SRL');
+    expect(text).toContain(`• Bloc C7 — la zi (ultima: Dezinsecție ${formatRo('2026-08-20')})`);
+  });
+
+  it('pentru o asociație la zi FĂRĂ istoric (abia introdusă) rămâne „la zi”, fără paranteză', () => {
+    const brandNew: AdministratorGroup = {
+      ...groupWithHistory,
+      associations: [
+        {
+          association_id: 3,
+          association_name: 'Bloc Nou',
+          association_active: true,
+          contact_id: 30,
+          open_followups: [],
+          last_interventions: [],
+        },
+      ],
+    };
+    const text = buildAdministratorSituationMessage(brandNew, '0722000000', 'Firma Test SRL');
+    expect(text).toContain('• Bloc Nou — la zi');
+    expect(text).not.toContain('Bloc Nou — la zi (ultima');
+  });
+
+  it('cu mai multe servicii scadente, arată doar „făcută” pentru cel cu istoric, restul rămân neschimbate', () => {
+    const mixed: AdministratorGroup = {
+      ...groupWithHistory,
+      associations: [
+        {
+          association_id: 4,
+          association_name: 'Bloc Mixt',
+          association_active: true,
+          contact_id: 40,
+          open_followups: [
+            { service_name: 'Deratizare', due_date: '2026-10-15', overdue: false },
+            { service_name: 'Dezinfecție', due_date: '2026-09-01', overdue: true },
+          ],
+          last_interventions: [{ service_name: 'Deratizare', last_performed_date: '2026-03-12' }],
+        },
+      ],
+    };
+    const text = buildAdministratorSituationMessage(mixed, '0722000000', 'Firma Test SRL');
+    expect(text).toContain(
+      `Deratizare făcută ${formatRo('2026-03-12')}, scadentă ${formatRo('2026-10-15')}`,
+    );
+    expect(text).toContain(`Dezinfecție, restantă din ${formatRo('2026-09-01')}`);
   });
 });
 

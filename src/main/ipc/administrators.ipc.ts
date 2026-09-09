@@ -23,7 +23,11 @@ import type { AppContext } from '../app-context';
 /**
  * Textul agregat cu situația TUTUROR asociațiilor unei persoane (identificată după
  * telefon) — inclusiv cele „la zi”, exact cum a cerut clientul: „să văd ce a făcut și ce
- * nu a făcut”. Funcție pură (fără acces la bază), testabilă direct.
+ * nu a făcut”. Pentru fiecare serviciu cu o urmărire deschisă arătăm și ULTIMA
+ * intervenție (dacă există) alături de scadență, ex. „Deratizare făcută 12.03.2026,
+ * scadentă 15.10.2026”; pentru o asociație complet la zi cu istoric arătăm scurt ultima
+ * intervenție făcută. Mesajul rămâne scurt — fără tabele, fără rânduri lungi — funcție
+ * pură (fără acces la bază), testabilă direct.
  */
 export function buildAdministratorSituationMessage(
   group: AdministratorGroup,
@@ -36,12 +40,30 @@ export function buildAdministratorSituationMessage(
     'Situația asociațiilor dumneavoastră:',
   ];
   for (const a of group.associations) {
+    const lastByService = new Map(a.last_interventions.map((li) => [li.service_name, li.last_performed_date]));
+
     if (a.open_followups.length === 0) {
-      lines.push(`• ${a.association_name} — la zi`);
+      // Asociație la zi: dacă există istoric, arătăm scurt cea mai recentă intervenție
+      // (dintre toate serviciile), ca omul să vadă și ce s-a făcut, nu doar că e la zi.
+      const mostRecent = a.last_interventions.reduce<
+        { service_name: string; last_performed_date: string } | null
+      >((best, li) => (!best || li.last_performed_date > best.last_performed_date ? li : best), null);
+      lines.push(
+        mostRecent
+          ? `• ${a.association_name} — la zi (ultima: ${mostRecent.service_name} ${formatRo(mostRecent.last_performed_date)})`
+          : `• ${a.association_name} — la zi`,
+      );
       continue;
     }
+
     const details = a.open_followups
-      .map((f) => `${f.service_name}, ${f.overdue ? 'restantă din' : 'scadentă'} ${formatRo(f.due_date)}`)
+      .map((f) => {
+        const lastDate = lastByService.get(f.service_name);
+        const nextPart = `${f.overdue ? 'restantă din' : 'scadentă'} ${formatRo(f.due_date)}`;
+        return lastDate
+          ? `${f.service_name} făcută ${formatRo(lastDate)}, ${nextPart}`
+          : `${f.service_name}, ${nextPart}`;
+      })
       .join('; ');
     lines.push(`• ${a.association_name} — ${details}`);
   }

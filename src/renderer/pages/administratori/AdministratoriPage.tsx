@@ -18,6 +18,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { unaccentRo } from '../../../shared/text';
 import { AdminSituationWhatsappButton } from './AdminSituationWhatsappButton';
+import { AdministratorDetailDrawer } from './AdministratorDetailDrawer';
 import type { AdministratorGroup } from '../../../shared/schemas/contact';
 
 /**
@@ -29,10 +30,18 @@ import type { AdministratorGroup } from '../../../shared/schemas/contact';
  */
 export function AdministratoriPage() {
   const [search, setSearch] = useState('');
+  const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
 
   const { data, loading, reload } = useIpcQuery<AdministratorGroup[]>(
     () => ddd.administrators.list(),
     [],
+  );
+
+  // Grupul derivat din `data` (nu memorat separat): rămâne la zi automat după orice
+  // reîncărcare (ex. după o trimitere WhatsApp reușită sau după `dataChanged`).
+  const selectedGroup = useMemo(
+    () => (selectedPhone ? (data?.find((g) => g.phone === selectedPhone) ?? null) : null),
+    [data, selectedPhone],
   );
 
   const filtered = useMemo(() => {
@@ -98,6 +107,8 @@ export function AdministratoriPage() {
             highlightOnHover
             verticalSpacing={6}
             noRecordsText="Niciun administrator înregistrat încă."
+            onRowClick={({ record }) => setSelectedPhone(record.phone)}
+            rowStyle={() => ({ cursor: 'pointer' })}
             columns={[
               {
                 accessor: 'display_name',
@@ -199,6 +210,13 @@ export function AdministratoriPage() {
           />
         )}
       </Card>
+
+      <AdministratorDetailDrawer
+        group={selectedGroup}
+        opened={selectedPhone !== null}
+        onClose={() => setSelectedPhone(null)}
+        onSent={reload}
+      />
     </Stack>
   );
 }

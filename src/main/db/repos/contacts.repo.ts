@@ -215,6 +215,38 @@ export class ContactRepository {
       }
     }
 
+    // Ultima intervenție per (asociație, serviciu) — „ce s-a făcut” —, tot cu un singur
+    // IN (...) batched (nu o interogare per asociație): MAX(performed_date) grupat pe
+    // asociație + serviciu, ca administratorul să vadă starea fiecărui serviciu separat,
+    // nu doar cea mai recentă intervenție din toată asociația.
+    const lastInterventionsByAssociation = new Map<
+      number,
+      { service_name: string; last_performed_date: string }[]
+    >();
+    if (associationIds.size > 0) {
+      const ids = [...associationIds];
+      const placeholders = ids.map(() => '?').join(',');
+      const interventionRows = this.db.all<{
+        association_id: number;
+        service_name: string;
+        last_performed_date: string;
+      }>(
+        `SELECT i.association_id, s.name AS service_name, MAX(i.performed_date) AS last_performed_date
+         FROM interventions i
+         JOIN services s ON s.id = i.service_id
+         WHERE i.association_id IN (${placeholders})
+         GROUP BY i.association_id, i.service_id
+         ORDER BY s.name COLLATE NOCASE`,
+        ...ids,
+      );
+      for (const ir of interventionRows) {
+        const list = lastInterventionsByAssociation.get(ir.association_id);
+        const entry = { service_name: ir.service_name, last_performed_date: ir.last_performed_date };
+        if (list) list.push(entry);
+        else lastInterventionsByAssociation.set(ir.association_id, [entry]);
+      }
+    }
+
     const groups: AdministratorGroup[] = [];
     for (const [phone, contactsForPhone] of byPhone) {
       // rows sunt ORDER BY updated_at DESC — primul rând per asociație e contactul cel
@@ -237,6 +269,7 @@ export class ContactRepository {
             association_active: !!row.association_active,
             contact_id: row.contact_id,
             open_followups: openFollowups,
+            last_interventions: lastInterventionsByAssociation.get(row.association_id) ?? [],
           };
         })
         .sort((a, b) => a.association_name.localeCompare(b.association_name, 'ro'));
