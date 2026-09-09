@@ -18,6 +18,7 @@ import type { LicenseService } from '../services/license.service';
 import { setIpcLogger } from './register';
 import { registerAssociationHandlers } from './associations.ipc';
 import { registerContactHandlers } from './contacts.ipc';
+import { registerAdministratorHandlers } from './administrators.ipc';
 import { registerServiceHandlers } from './services.ipc';
 import { registerInterventionHandlers } from './interventions.ipc';
 import { registerFollowupHandlers } from './followups.ipc';
@@ -45,6 +46,7 @@ export function registerAllIpcHandlers(ctx: AppContext, deps: IpcDependencies): 
   setIpcLogger(ctx.logger);
   registerAssociationHandlers(ctx);
   registerContactHandlers(ctx);
+  registerAdministratorHandlers(ctx);
   registerServiceHandlers(ctx);
   registerInterventionHandlers(ctx);
   registerFollowupHandlers(ctx);

@@ -41,6 +41,70 @@ export type ContactUpdate = z.infer<typeof contactUpdateSchema>;
 export type ContactRole = (typeof contactRoles)[number];
 export type ContactChannel = (typeof contactChannels)[number];
 
+// ---------- Administratori cu mai multe asociații ----------
+//
+// Un administrator care gestionează mai multe asociații e introdus, în modelul actual,
+// ca un contact separat pentru fiecare asociație (`contacts.association_id` e singular —
+// vezi migrația 001; NU s-a schimbat schema pentru asta). Grupurile de mai jos se
+// calculează la interogare, după telefonul normalizat (E.164, fără '+'), nu la scriere:
+// zero risc pentru datele existente, zero migrare.
+
+export const administratorPhoneSchema = z.object({
+  phone: z.string().trim().min(1, 'Numărul de telefon este obligatoriu'),
+});
+
+export const administratorPhonesSchema = z.object({
+  phones: z.array(z.string().trim().min(1)).max(200),
+});
+
+export const administratorWhatsappSendSchema = z.object({
+  phone: z.string().trim().min(1, 'Numărul de telefon este obligatoriu'),
+  message: z.string().trim().min(1, 'Mesajul este gol.').max(5000),
+});
+
+export type AdministratorPhoneInput = z.infer<typeof administratorPhoneSchema>;
+export type AdministratorPhonesInput = z.infer<typeof administratorPhonesSchema>;
+export type AdministratorWhatsappSendInput = z.infer<typeof administratorWhatsappSendSchema>;
+
+/** Starea unui singur follow-up deschis, pentru mesajul agregat / lista de administratori. */
+export interface AdministratorFollowupStatus {
+  service_name: string;
+  due_date: string;
+  /** true dacă due_date e în trecut față de ziua curentă. */
+  overdue: boolean;
+}
+
+/** Situația unei asociații din grupul unui administrator. */
+export interface AdministratorAssociationSummary {
+  association_id: number;
+  association_name: string;
+  association_active: boolean;
+  /** Contactul concret (din ACEASTĂ asociație) care poartă telefonul grupului. */
+  contact_id: number;
+  /** Follow-up-uri deschise (pending/contacted/scheduled); gol înseamnă „la zi”. */
+  open_followups: AdministratorFollowupStatus[];
+}
+
+/** Un administrator (identificat după telefon normalizat) cu toate asociațiile lui. */
+export interface AdministratorGroup {
+  /** Telefon normalizat E.164 fără '+' — cheie stabilă a grupului. */
+  phone: string;
+  /** Telefonul așa cum a fost scris ultima dată (pentru afișare + wa.me). */
+  phone_display: string;
+  /** Numele din contactul cel mai recent actualizat. */
+  display_name: string;
+  /** Toate numele distincte văzute pentru acest telefon (pot diferi ușor între asociații). */
+  names: string[];
+  associations: AdministratorAssociationSummary[];
+  associations_count: number;
+  /** Câte asociații au cel puțin un follow-up restant (scadență trecută). */
+  overdue_count: number;
+  /** Câte asociații au cel puțin un follow-up scadent, dar niciunul restant. */
+  upcoming_count: number;
+  /** Câte asociații sunt „la zi” (fără follow-up-uri deschise). */
+  ok_count: number;
+}
+
 export interface Contact {
   id: number;
   association_id: number;

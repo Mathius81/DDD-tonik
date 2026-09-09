@@ -30,6 +30,14 @@ const api = {
     update: invoke(IPC.contacts.update),
     delete: invoke(IPC.contacts.delete),
   },
+  administrators: {
+    list: invoke(IPC.administrators.list),
+    getByPhones: invoke(IPC.administrators.getByPhones),
+    preview: invoke(IPC.administrators.preview),
+    whatsapp: {
+      send: invoke(IPC.administrators.whatsapp.send),
+    },
+  },
   services: {
     list: invoke(IPC.services.list),
     create: invoke(IPC.services.create),

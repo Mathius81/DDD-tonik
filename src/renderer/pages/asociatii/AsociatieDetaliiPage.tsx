@@ -7,7 +7,7 @@
  * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
  * sau distribuirea fără acordul scris al autorului sunt interzise.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Title,
   Text,
@@ -47,8 +47,9 @@ import { ContactFormModal } from './ContactFormModal';
 import { InterventionFormModal } from '../interventii/InterventionFormModal';
 import { ScheduleFollowupModal } from '../interventii/ScheduleFollowupModal';
 import { SendMessageModal } from '../mesaje/SendMessageModal';
+import { AdminSituationWhatsappButton } from '../administratori/AdminSituationWhatsappButton';
 import type { Association } from '../../../shared/schemas/association';
-import type { Contact } from '../../../shared/schemas/contact';
+import type { AdministratorGroup, Contact } from '../../../shared/schemas/contact';
 import type { FollowupListItem } from '../../../shared/schemas/followup';
 import type { InterventionListItem } from '../../../shared/schemas/intervention';
 import type { MessageLogListItem } from '../../../shared/schemas/message';
@@ -81,6 +82,23 @@ export function AsociatieDetaliiPage() {
   const { data, loading, reload } = useIpcQuery<AssociationDetail>(
     () => ddd.associations.get({ id: associationId }),
     [associationId],
+  );
+
+  // Telefoanele contactelor asociației — verificăm dacă vreunul dintre ei mai administrează
+  // și alte asociații (identificare automată după telefon), ca să arătăm butonul „trimite
+  // situația completă” doar acolo unde chiar are sens. Hook-ul stă înaintea oricărui
+  // `return` de mai jos, ca să respecte regulile React (ordine constantă a hook-urilor).
+  const contactPhones = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of data?.contacts ?? []) {
+      if (c.phone) set.add(c.phone);
+    }
+    return Array.from(set);
+  }, [data]);
+
+  const { data: adminGroups } = useIpcQuery<Record<string, AdministratorGroup>>(
+    () => ddd.administrators.getByPhones({ phones: contactPhones }),
+    [contactPhones],
   );
 
   if (loading || !data) {
@@ -306,50 +324,66 @@ export function AsociatieDetaliiPage() {
             </Card>
           ) : (
             <Stack gap="sm">
-              {contacts.map((c) => (
-                <Card key={c.id} withBorder shadow="xs" padding="md">
-                  <Group justify="space-between">
-                    <div>
+              {contacts.map((c) => {
+                const group = c.phone ? adminGroups?.[c.phone] : undefined;
+                const isMultiAssociation = !!group && group.associations_count > 1;
+                return (
+                  <Card key={c.id} withBorder shadow="xs" padding="md">
+                    <Group justify="space-between">
+                      <div>
+                        <Group gap="xs">
+                          <Text fw={600}>{c.name}</Text>
+                          <Badge variant="light" color="gray">
+                            {c.role}
+                          </Badge>
+                          {c.is_primary && (
+                            <Badge color="teal" variant="light">
+                              Principal
+                            </Badge>
+                          )}
+                          {c.do_not_contact && (
+                            <Badge color="red" variant="light">
+                              Nu contacta
+                            </Badge>
+                          )}
+                          {isMultiAssociation && (
+                            <Badge color="blue" variant="light">
+                              Administrează {group!.associations_count} asociații
+                            </Badge>
+                          )}
+                        </Group>
+                        <Text size="sm" c="dimmed" mt={2}>
+                          {[c.phone, c.email].filter(Boolean).join(' · ') || 'Fără date de contact'}
+                        </Text>
+                      </div>
                       <Group gap="xs">
-                        <Text fw={600}>{c.name}</Text>
-                        <Badge variant="light" color="gray">
-                          {c.role}
-                        </Badge>
-                        {c.is_primary && (
-                          <Badge color="teal" variant="light">
-                            Principal
-                          </Badge>
+                        {isMultiAssociation && (
+                          <AdminSituationWhatsappButton
+                            phone={c.phone!}
+                            subtitle={`${group!.display_name} · ${group!.phone_display} · ${group!.associations_count} asociații`}
+                            onSent={reload}
+                          />
                         )}
-                        {c.do_not_contact && (
-                          <Badge color="red" variant="light">
-                            Nu contacta
-                          </Badge>
-                        )}
+                        <Button
+                          size="compact-sm"
+                          variant="default"
+                          onClick={() => setContactModal({ open: true, contact: c })}
+                        >
+                          Editează
+                        </Button>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          onClick={() => confirmDeleteContact(c)}
+                          aria-label="Șterge contact"
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
                       </Group>
-                      <Text size="sm" c="dimmed" mt={2}>
-                        {[c.phone, c.email].filter(Boolean).join(' · ') || 'Fără date de contact'}
-                      </Text>
-                    </div>
-                    <Group gap="xs">
-                      <Button
-                        size="compact-sm"
-                        variant="default"
-                        onClick={() => setContactModal({ open: true, contact: c })}
-                      >
-                        Editează
-                      </Button>
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        onClick={() => confirmDeleteContact(c)}
-                        aria-label="Șterge contact"
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
                     </Group>
-                  </Group>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </Stack>
           )}
         </Tabs.Panel>

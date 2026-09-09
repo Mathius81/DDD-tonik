@@ -25,6 +25,21 @@ export const IPC = {
     update: 'contacts:update',
     delete: 'contacts:delete',
   },
+  /**
+   * Administratori cu mai multe asociații — grupare la interogare, după telefonul
+   * normalizat (fără migrare de date, vezi `contacts.repo.ts`).
+   */
+  administrators: {
+    /** Doar persoanele cu mai mult de o asociație — pagina „Administratori”. */
+    list: 'administrators:list',
+    /** Grupurile pentru un set de telefoane brute — mapate 1:1 pe telefonul primit. */
+    getByPhones: 'administrators:getByPhones',
+    /** Textul agregat propus (editabil în UI înainte de trimitere). */
+    preview: 'administrators:preview',
+    whatsapp: {
+      send: 'administrators:whatsapp:send',
+    },
+  },
   services: {
     list: 'services:list',
     create: 'services:create',

@@ -7,9 +7,10 @@
  * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
  * sau distribuirea fără acordul scris al autorului sunt interzise.
  */
-import { useState } from 'react';
-import { Stack, SegmentedControl, Button, Card, Text, Anchor } from '@mantine/core';
+import { useMemo, useState } from 'react';
+import { Stack, SegmentedControl, Button, Card, Text, Anchor, Group, Tooltip } from '@mantine/core';
 import { DataTable } from 'mantine-datatable';
+import { IconUsersGroup } from '@tabler/icons-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ddd } from '../../api/ddd';
 import { useIpcQuery, runMutation } from '../../api/useIpc';
@@ -18,12 +19,14 @@ import { EmptyState } from '../../components/EmptyState';
 import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ServiceBadge } from '../../components/ServiceBadge';
+import { AdminSituationWhatsappButton } from '../administratori/AdminSituationWhatsappButton';
 import {
   reminderChannelLabels,
   reminderStatusLabels,
   type ReminderListItem,
   type ReminderStatus,
 } from '../../../shared/schemas/reminder';
+import type { AdministratorGroup } from '../../../shared/schemas/contact';
 import type { Paginated } from '../../../shared/schemas/common';
 
 const PAGE_SIZE = 50;
@@ -50,6 +53,34 @@ export function ReminderePage() {
     () => ddd.reminders.counts(),
     [],
   );
+
+  // Telefoanele de pe reminderele WhatsApp afișate acum — folosite ca să depistăm dacă mai
+  // multe remindere de pe pagina curentă aparțin de fapt ACELEIAȘI persoane (administrator cu
+  // mai multe asociații), ca să-i putem trimite o singură situație agregată în loc de mai
+  // multe mesaje separate. Normalizarea telefonului rămâne în main (`administrators.repo`);
+  // aici lucrăm doar cu telefonul brut, așa cum apare pe reminder.
+  const whatsappPhones = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of data?.items ?? []) {
+      if (r.channel === 'whatsapp' && r.recipient_detail) set.add(r.recipient_detail);
+    }
+    return Array.from(set);
+  }, [data]);
+
+  const { data: adminGroups } = useIpcQuery<Record<string, AdministratorGroup>>(
+    () => ddd.administrators.getByPhones({ phones: whatsappPhones }),
+    [whatsappPhones],
+  );
+
+  /** Grupurile cu mai mult de o asociație, prezente printre reminderele curente. */
+  const multiAssociationGroups = useMemo(() => {
+    if (!adminGroups) return [];
+    const seen = new Map<string, AdministratorGroup>();
+    for (const group of Object.values(adminGroups)) {
+      if (group.associations_count > 1) seen.set(group.phone, group);
+    }
+    return Array.from(seen.values());
+  }, [adminGroups]);
 
   const tabLabel = (key: WindowKey, label: string) =>
     counts ? `${label} ${counts[key]}` : label;
@@ -84,6 +115,42 @@ export function ReminderePage() {
           { value: 'all', label: tabLabel('all', 'Toate') },
         ]}
       />
+
+      {multiAssociationGroups.length > 0 && (
+        <Card padding="var(--sp-4)" style={{ borderLeft: '3px solid var(--accent)' }}>
+          <Stack gap="var(--sp-3)">
+            <Group gap={8}>
+              <IconUsersGroup size={17} color="var(--accent)" />
+              <Text size="var(--fs-body)" fw={600}>
+                {multiAssociationGroups.length === 1
+                  ? 'O persoană de mai jos administrează mai multe asociații.'
+                  : `${multiAssociationGroups.length} persoane de mai jos administrează mai multe asociații.`}
+              </Text>
+            </Group>
+            <Text size="var(--fs-small)" c="var(--text-muted)">
+              Trimite-i o singură situație completă, cu toate asociațiile ei, în loc de câte un
+              mesaj separat pentru fiecare.
+            </Text>
+            <Stack gap={6}>
+              {multiAssociationGroups.map((g) => (
+                <Group key={g.phone} justify="space-between" wrap="nowrap">
+                  <Text size="var(--fs-body)">
+                    {g.display_name}{' '}
+                    <Text span c="var(--text-muted)" size="var(--fs-small)" className="tonik-num">
+                      ({g.phone_display}) · {g.associations_count} asociații
+                    </Text>
+                  </Text>
+                  <AdminSituationWhatsappButton
+                    phone={g.phone_display}
+                    label="Trimite situația"
+                    subtitle={`${g.display_name} · ${g.phone_display} · ${g.associations_count} asociații`}
+                  />
+                </Group>
+              ))}
+            </Stack>
+          </Stack>
+        </Card>
+      )}
 
       <Card padding="var(--sp-4)">
         {data && data.total === 0 ? (
@@ -154,10 +221,22 @@ export function ReminderePage() {
               {
                 accessor: 'recipient_name',
                 title: 'Destinatar',
-                render: (r) =>
-                  r.recipient_name ? (
+                render: (r) => {
+                  const group =
+                    r.channel === 'whatsapp' && r.recipient_detail
+                      ? adminGroups?.[r.recipient_detail]
+                      : undefined;
+                  const isMulti = !!group && group.associations_count > 1;
+                  return r.recipient_name ? (
                     <div>
-                      <Text size="var(--fs-body)">{r.recipient_name}</Text>
+                      <Group gap={4} wrap="nowrap">
+                        <Text size="var(--fs-body)">{r.recipient_name}</Text>
+                        {isMulti && (
+                          <Tooltip label={`Administrează ${group!.associations_count} asociații`}>
+                            <IconUsersGroup size={14} color="var(--accent)" />
+                          </Tooltip>
+                        )}
+                      </Group>
                       {r.recipient_detail && (
                         <Text size="var(--fs-small)" c="var(--text-muted)" className="tonik-num">
                           {r.recipient_detail}
@@ -168,7 +247,8 @@ export function ReminderePage() {
                     <Text size="var(--fs-small)" c="var(--text-faint)">
                       —
                     </Text>
-                  ),
+                  );
+                },
               },
               {
                 accessor: 'status',

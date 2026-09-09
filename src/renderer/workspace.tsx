@@ -23,6 +23,7 @@ import {
   IconClockHour4,
   IconBuildingWarehouse,
   IconTransferIn,
+  IconUsersGroup,
 } from '@tabler/icons-react';
 
 /**
@@ -63,6 +64,13 @@ const dddNav: WorkspaceNavItem[] = [
     path: 'asociatii',
     label: 'Asociații',
     icon: IconBuildingCommunity,
+    section: 'Operațiuni',
+  },
+  {
+    key: 'administratori',
+    path: 'administratori',
+    label: 'Administratori',
+    icon: IconUsersGroup,
     section: 'Operațiuni',
   },
   {
