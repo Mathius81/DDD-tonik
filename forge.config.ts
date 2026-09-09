@@ -30,6 +30,10 @@ const config: ForgeConfig = {
     executableName: 'DDDManager',
     appBundleId: 'ro.dddmanager.app',
     appCopyright: 'Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.',
+    // Icoana executabilului (bara de activități, scurtătura de pe desktop, Proprietăți).
+    // Fără extensie: Forge alege singur .ico pe Windows și .icns pe macOS.
+    // Se regenerează din logo cu `npm run icon` (tools/make-ico.mjs).
+    icon: path.join(process.cwd(), 'build-assets', 'icon'),
     extraResource: [path.join(process.cwd(), 'THIRD-PARTY-LICENSES.txt')],
     win32metadata: {
       CompanyName: 'Marius Constantinescu',
@@ -47,6 +51,10 @@ const config: ForgeConfig = {
       owners: 'Marius Constantinescu',
       copyright: 'Copyright © 2026 Marius Constantinescu. Toate drepturile rezervate.',
       description: 'Tonik — DDD Manager, creație originală a lui Marius Constantinescu.',
+      // Icoana scurtăturilor create de installer (desktop și meniul Start),
+      // respectiv a aplicației în „Aplicații instalate” din Windows.
+      setupIcon: path.join(process.cwd(), 'build-assets', 'icon.ico'),
+      iconUrl: 'https://raw.githubusercontent.com/Mathius81/DDD-tonik/master/build-assets/icon.ico',
     }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),

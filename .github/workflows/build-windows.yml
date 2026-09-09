@@ -1,8 +1,11 @@
 name: Build Windows installer
 
+# Pornește automat la fiecare push pe master și poate fi pornit manual pe ORICE
+# ramură, din Actions → „Run workflow” → alegi ramura. Manual e util ca să obții
+# un installer dintr-o ramură de lucru, fără s-o duci întâi în master.
 on:
   push:
-    branches: [main, master]
+    branches: [master, main]
   workflow_dispatch:
 
 jobs:
@@ -16,24 +19,28 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Instalează dependențele
         run: npm ci
 
       - name: Lint
         run: npm run lint
 
-      - name: Typecheck
+      - name: Verificare de tipuri
         run: npm run typecheck
 
-      - name: Tests
+      - name: Teste
         run: npm test
 
-      - name: Build installer
+      - name: Construiește installerul
         run: npm run make
 
-      - name: Upload installer artifact
+      # Numele include numărul rulării, ca să nu se amestece build-urile între ele
+      # când descarci mai multe. Installerul se ia din secțiunea „Artifacts”.
+      # 90 de zile de păstrare (implicit sunt doar 30).
+      - name: Publică installerul
         uses: actions/upload-artifact@v4
         with:
-          name: DDDManager-Setup
+          name: DDDManager-Setup-${{ github.run_number }}
           path: out/make/squirrel.windows/x64/*.exe
           if-no-files-found: error
+          retention-days: 90

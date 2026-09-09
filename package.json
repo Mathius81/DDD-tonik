@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "licenses": "node tools/third-party-licenses.mjs"
+    "licenses": "node tools/third-party-licenses.mjs",
+    "icon": "node tools/make-ico.mjs"
   },
   "keywords": [],
   "author": {
