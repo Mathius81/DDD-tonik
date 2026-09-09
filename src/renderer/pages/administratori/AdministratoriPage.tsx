@@ -54,7 +54,7 @@ export function AdministratoriPage() {
     <Stack gap="var(--sp-4)">
       <PageHeader
         title="Administratori"
-        description="Persoanele care administrează mai multe asociații — situația completă, într-un singur mesaj."
+        description="Persoanele de contact ale asociațiilor. Pentru cine administrează mai multe, situația completă pleacă într-un singur mesaj."
       />
 
       <Card padding="var(--sp-4)">
@@ -80,7 +80,7 @@ export function AdministratoriPage() {
             icon={<IconUsersGroup size={24} stroke={1.5} />}
             title={
               noneAtAll
-                ? 'Niciun administrator cu mai multe asociații.'
+                ? 'Niciun administrator înregistrat încă.'
                 : 'Niciun rezultat pentru căutarea curentă.'
             }
             description={
@@ -97,7 +97,7 @@ export function AdministratoriPage() {
             idAccessor="phone"
             highlightOnHover
             verticalSpacing={6}
-            noRecordsText="Niciun administrator cu mai multe asociații."
+            noRecordsText="Niciun administrator înregistrat încă."
             columns={[
               {
                 accessor: 'display_name',
@@ -190,7 +190,7 @@ export function AdministratoriPage() {
                   <AdminSituationWhatsappButton
                     phone={g.phone_display}
                     label="Trimite situația"
-                    subtitle={`${g.display_name} · ${g.phone_display} · ${g.associations_count} asociații`}
+                    subtitle={`${g.display_name} · ${g.phone_display} · ${g.associations_count} ${g.associations_count === 1 ? 'asociație' : 'asociații'}`}
                     onSent={reload}
                   />
                 ),

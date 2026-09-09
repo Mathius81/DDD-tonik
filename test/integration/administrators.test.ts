@@ -124,19 +124,34 @@ describe('ContactRepository — grupare administratori după telefon (spec: iden
     expect(groups[0].associations.some((a) => a.association_id === a3)).toBe(false);
   });
 
-  it('o persoană cu o SINGURĂ asociație nu apare în lista de administratori cu mai multe asociații', () => {
+  it('o persoană cu o SINGURĂ asociație apare și ea în listă (pagina e o listă de lucru completă)', () => {
     const a1 = seedAssociation(db, 'Bloc A1');
     seedContact(db, a1, 'Maria Ionescu', '0733222333');
 
     const groups = repo.listAdministratorGroups(TODAY);
-    expect(groups).toHaveLength(0);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].display_name).toBe('Maria Ionescu');
+    expect(groups[0].associations_count).toBe(1);
 
-    // Grupul tot există la căutare directă (folosit de butonul de trimitere manuală),
-    // dar cu o singură asociație — UI-ul decide, pe baza acestui câmp, să NU arate
-    // butonul „trimite situația completă” pentru cazul ăsta.
+    // Numărul de asociații rămâne disponibil: UI-ul decide pe baza lui dacă are
+    // sens butonul „trimite situația completă” (are sens de la două în sus).
     const direct = repo.getAdministratorGroupByPhone('0733222333', TODAY);
     expect(direct).toBeDefined();
     expect(direct!.associations_count).toBe(1);
+  });
+
+  it('îi listează împreună pe cei cu una și pe cei cu mai multe asociații', () => {
+    const a1 = seedAssociation(db, 'Bloc Singur');
+    const a2 = seedAssociation(db, 'Bloc Doi A');
+    const a3 = seedAssociation(db, 'Bloc Doi B');
+    seedContact(db, a1, 'Maria Ionescu', '0733222333');
+    seedContact(db, a2, 'Ion Popescu', '0722111222');
+    seedContact(db, a3, 'Ion Popescu', '0722111222');
+
+    const groups = repo.listAdministratorGroups(TODAY);
+    expect(groups).toHaveLength(2);
+    const dupaNume = Object.fromEntries(groups.map((g) => [g.display_name, g.associations_count]));
+    expect(dupaNume).toEqual({ 'Maria Ionescu': 1, 'Ion Popescu': 2 });
   });
 
   it('calculează corect restante / scadente / la zi pentru fiecare asociație a grupului', () => {

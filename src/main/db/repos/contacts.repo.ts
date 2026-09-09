@@ -262,10 +262,15 @@ export class ContactRepository {
     return groups;
   }
 
-  /** Administratorii (după telefon) care au MAI MULT de o asociație — pagina „Administratori”. */
+  /**
+   * Toți administratorii, grupați după telefon — pagina „Administratori”.
+   * Îi include și pe cei cu o singură asociație: pagina e o listă de lucru, nu
+   * doar cazul special al celor cu mai multe. Gruparea într-un singur mesaj are
+   * sens doar de la două asociații în sus, dar asta se vede în coloana „Asociații”.
+   * Ordinea: cei cu restanțe primii, apoi alfabetic.
+   */
   listAdministratorGroups(todayIso: string): AdministratorGroup[] {
     return this.computeAdministratorGroups(todayIso)
-      .filter((g) => g.associations_count > 1)
       .sort(
         (a, b) => b.overdue_count - a.overdue_count || a.display_name.localeCompare(b.display_name, 'ro'),
       );
