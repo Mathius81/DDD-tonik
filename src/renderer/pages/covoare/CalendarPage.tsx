@@ -14,7 +14,6 @@ import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { useIpcQuery } from '../../api/useIpc';
 import { PageHeader } from '../../components/PageHeader';
-import { EmptyState } from '../../components/EmptyState';
 import { StatusBadge } from '../../components/StatusBadge';
 import { roMediumDate } from '../../../shared/text';
 import { carpetOrderStatusLabels, type CarpetCalendarDayEntry } from '../../../shared/schemas/carpet';
@@ -149,15 +148,10 @@ export function CalendarPage() {
           </Text>
         </Group>
 
-        {!hasAnyEntries ? (
-          <EmptyState
-            title="Nicio comandă în această lună."
-            description="Alege altă lună sau adaugă o comandă nouă din Comenzi."
-            actionLabel="Mergi la Comenzi"
-            onAction={() => navigate('/covoare/comenzi')}
-          />
-        ) : (
-          <SimpleGrid
+        {/* Grila lunii se afișează ÎNTOTDEAUNA — un calendar gol tot e un calendar,
+            iar înlocuirea lui cu un mesaj făcea pagina să pară stricată. Mesajul
+            pentru lunile fără comenzi apare discret sub grilă. */}
+        <SimpleGrid
             cols={7}
             spacing={4}
             style={{ opacity: loading ? 0.55 : 1, transition: 'opacity 120ms ease' }}
@@ -234,7 +228,21 @@ export function CalendarPage() {
                 </UnstyledButton>
               );
             })}
-          </SimpleGrid>
+        </SimpleGrid>
+
+        {!hasAnyEntries && (
+          <Group justify="center" gap="var(--sp-2)" mt="var(--sp-4)">
+            <Text size="var(--fs-small)" c="var(--text-muted)">
+              Nicio comandă în această lună.
+            </Text>
+            <Button
+              variant="subtle"
+              size="compact-sm"
+              onClick={() => navigate('/covoare/comenzi')}
+            >
+              Mergi la Comenzi
+            </Button>
+          </Group>
         )}
       </Card>
 
