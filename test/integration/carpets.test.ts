@@ -7,14 +7,15 @@
  * preluat sau adaptat. Cod proprietar; vezi LICENSE. Reutilizarea, copierea
  * sau distribuirea fără acordul scris al autorului sunt interzise.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestDb } from '../helpers/tmp-db';
 import { extractPageSizeFromRenderer } from '../helpers/pagesize-contract';
 import type { Db } from '../../src/main/db/database';
 import { runMigrations, currentSchemaVersion } from '../../src/main/db/migrations';
 import { CarpetClientRepository } from '../../src/main/db/repos/carpet-clients.repo';
 import { CarpetOrderRepository } from '../../src/main/db/repos/carpet-orders.repo';
-import { carpetClientListFilterSchema } from '../../src/shared/schemas/carpet';
+import { carpetClientListFilterSchema, type CarpetClientGroup } from '../../src/shared/schemas/carpet';
+import { formatRo } from '../../src/shared/dates';
 
 describe('Contract: pageSize trimis de OrderFormModal (selectorul de clienți)', () => {
   it('valoarea REALĂ din sursa modalului trece validarea schemei zod folosite de handler-ul IPC', () => {
@@ -514,5 +515,410 @@ describe('CarpetOrderRepository', () => {
         items: [{ type: 'covor', length_m: 1, width_m: 1 }],
       }),
     ).toThrow();
+  });
+
+  // ---------- getClientGroup — situația agregată „adunate per client” ----------
+  //
+  // Cerința clientului: aceeași persoană poate apărea pe mai multe rânduri în lista de
+  // comenzi (una „în lucru”, alta „gata de livrat”) — aici trebuie să apară TOATE la un loc.
+
+  function makeOrder(overrides: {
+    pickup_date: string;
+    due_date?: string | null;
+    status: 'preluat' | 'in_lucru' | 'gata' | 'livrat';
+    price_per_sqm?: number | null;
+    length_m: number;
+    width_m: number;
+  }) {
+    return orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: overrides.pickup_date,
+      due_date: overrides.due_date ?? null,
+      status: overrides.status,
+      price_per_sqm: overrides.price_per_sqm ?? null,
+      notes: null,
+      items: [{ type: 'covor', length_m: overrides.length_m, width_m: overrides.width_m }],
+    });
+  }
+
+  it('getClientGroup adună două comenzi ale aceluiași client într-un singur grup', () => {
+    const o1 = makeOrder({ pickup_date: '2026-08-10', status: 'in_lucru', due_date: '2026-08-29', length_m: 4, width_m: 5 }); // 20 mp
+    const o2 = makeOrder({ pickup_date: '2026-08-20', status: 'gata', length_m: 2, width_m: 3 }); // 6 mp
+
+    const group = orders.getClientGroup(clientId)!;
+    expect(group).toBeDefined();
+    expect(group.client_ids).toEqual([clientId]);
+    expect(group.open_orders).toHaveLength(2);
+    const ids = group.open_orders.map((o) => o.order_id).sort();
+    expect(ids).toEqual([o1.id, o2.id].sort());
+    expect(group.delivered_orders).toHaveLength(0);
+  });
+
+  it('getClientGroup pentru un client cu o singură comandă întoarce un grup cu o singură comandă', () => {
+    const o1 = makeOrder({ pickup_date: '2026-08-10', status: 'preluat', length_m: 1, width_m: 1 });
+
+    const group = orders.getClientGroup(clientId)!;
+    expect(group.open_orders).toHaveLength(1);
+    expect(group.open_orders[0].order_id).toBe(o1.id);
+    expect(group.delivered_orders).toHaveLength(0);
+    expect(group.total_open_items).toBe(1);
+    expect(group.total_open_sqm).toBe(1);
+  });
+
+  it('getClientGroup exclude comenzile livrate din open_orders, dar le păstrează în delivered_orders (istoric)', () => {
+    const livrata = makeOrder({ pickup_date: '2026-08-01', status: 'livrat', length_m: 3, width_m: 3 }); // 9 mp
+    const inLucru = makeOrder({ pickup_date: '2026-08-15', status: 'in_lucru', length_m: 2, width_m: 2 }); // 4 mp
+
+    const group = orders.getClientGroup(clientId)!;
+    expect(group.open_orders.map((o) => o.order_id)).toEqual([inLucru.id]);
+    expect(group.delivered_orders.map((o) => o.order_id)).toEqual([livrata.id]);
+    // Totalurile agregate numără DOAR comenzile deschise — livrata nu trebuie inclusă.
+    expect(group.total_open_items).toBe(1);
+    expect(group.total_open_sqm).toBe(4);
+  });
+
+  it('getClientGroup însumează corect numărul total de covoare și mp peste toate comenzile deschise', () => {
+    makeOrder({ pickup_date: '2026-08-10', status: 'in_lucru', length_m: 4, width_m: 5 }); // 20 mp, 1 covor
+    makeOrder({ pickup_date: '2026-08-20', status: 'gata', length_m: 2, width_m: 3 }); // 6 mp, 1 covor
+    makeOrder({ pickup_date: '2026-08-01', status: 'livrat', length_m: 100, width_m: 100 }); // livrată — nu intră în total
+
+    const group = orders.getClientGroup(clientId)!;
+    expect(group.total_open_items).toBe(2);
+    expect(group.total_open_sqm).toBe(26);
+  });
+
+  it('getClientGroup întoarce items cu dimensiuni și mp pentru fiecare comandă', () => {
+    makeOrder({ pickup_date: '2026-08-10', status: 'in_lucru', length_m: 4, width_m: 5 });
+
+    const group = orders.getClientGroup(clientId)!;
+    expect(group.open_orders[0].items).toEqual([
+      { type: 'covor', length_m: 4, width_m: 5, sqm: 20 },
+    ]);
+  });
+
+  it('getClientGroup pentru un client inexistent întoarce undefined', () => {
+    expect(orders.getClientGroup(999999)).toBeUndefined();
+  });
+
+  it('getClientGroup NU face interogări per comandă (batched, nu N+1)', () => {
+    // 8 comenzi ale aceluiași client — numărul de interogări SQL trebuie să rămână FIX,
+    // nu unul care crește proporțional cu numărul de comenzi/covoare.
+    for (let i = 0; i < 8; i++) {
+      makeOrder({ pickup_date: '2026-08-10', status: 'in_lucru', length_m: 1, width_m: 1 });
+    }
+
+    const spy = vi.spyOn(db, 'all');
+    const group = orders.getClientGroup(clientId)!;
+    expect(group.open_orders).toHaveLength(8);
+
+    // Interogări așteptate, indiferent de N: client (db.get, nu db.all), frați după telefon,
+    // comenzi (IN batched), covoare (IN batched) — cel mult 3 apeluri către db.all.
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(3);
+    spy.mockRestore();
+  });
+
+  it('getClientGroup unifică doi clienți duplicați cu ACELAȘI telefon (adunate per persoană, nu per rând de client)', () => {
+    // Aceeași persoană introdusă din greșeală de două ori ca client separat — cerința
+    // explicită a clientului: comenzile trebuie adunate per persoană, nu risipite.
+    const duplicat = clients.create({
+      name: 'Popescu Ion',
+      phone: '0712345678', // exact același telefon ca `clientId` din beforeEach
+      address: null,
+      notes: null,
+    });
+    const o1 = makeOrder({ pickup_date: '2026-08-10', status: 'in_lucru', length_m: 2, width_m: 2 });
+    const o2 = orders.create({
+      client_id: duplicat.id,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-20',
+      due_date: null,
+      status: 'gata',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+
+    const group = orders.getClientGroup(clientId)!;
+    expect(group.client_ids.sort()).toEqual([clientId, duplicat.id].sort());
+    expect(group.open_orders.map((o) => o.order_id).sort()).toEqual([o1.id, o2.id].sort());
+  });
+
+  it('getClientGroup NU unifică clienți fără telefon completat (ar risca uniri greșite pe nume)', () => {
+    const faraTelefon1 = clients.create({ name: 'Omonim', phone: null, address: null, notes: null });
+    const faraTelefon2 = clients.create({ name: 'Omonim', phone: null, address: null, notes: null });
+    orders.create({
+      client_id: faraTelefon1.id,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-10',
+      due_date: null,
+      status: 'preluat',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+    orders.create({
+      client_id: faraTelefon2.id,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-11',
+      due_date: null,
+      status: 'preluat',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+
+    const group = orders.getClientGroup(faraTelefon1.id)!;
+    expect(group.client_ids).toEqual([faraTelefon1.id]);
+    expect(group.open_orders).toHaveLength(1);
+  });
+});
+
+// ---------- buildCarpetClientSituationMessage — textul agregat ----------
+//
+// `carpets.ipc.ts` importă `shell` din `electron` (mod asistat: deschide wa.me) și `handle()`
+// din `register.ts`, care înregistrează prin `ipcMain.handle`. Mock minimal, ca în
+// `administrators.test.ts`.
+
+const electronMock = vi.hoisted(() => {
+  const handlers = new Map<string, (event: unknown, payload: unknown) => unknown>();
+  return {
+    handlers,
+    ipcMain: {
+      handle: vi.fn((channel: string, fn: (event: unknown, payload: unknown) => unknown) => {
+        handlers.set(channel, fn);
+      }),
+    },
+    shell: { openExternal: vi.fn(async () => undefined) },
+  };
+});
+
+vi.mock('electron', () => ({
+  ipcMain: electronMock.ipcMain,
+  shell: electronMock.shell,
+}));
+
+import { shell } from 'electron';
+import { AppContext } from '../../src/main/app-context';
+import { registerCarpetHandlers, buildCarpetClientSituationMessage } from '../../src/main/ipc/carpets.ipc';
+import { IPC } from '../../src/shared/ipc-contract';
+import type { IpcResult } from '../../src/shared/ipc-contract';
+import type { AppPaths } from '../../src/main/paths';
+
+describe('buildCarpetClientSituationMessage — text agregat (o singură comandă WhatsApp per client)', () => {
+  const group: CarpetClientGroup = {
+    client_ids: [1],
+    display_name: 'Marius Constantinescu',
+    phone_display: '0739066031',
+    open_orders: [
+      {
+        order_id: 10,
+        status: 'in_lucru',
+        pickup_date: '2026-08-10',
+        due_date: '2026-08-29',
+        items: [{ type: 'covor', length_m: 4, width_m: 5, sqm: 20 }],
+        total_sqm: 20,
+        total_price: 340,
+      },
+      {
+        order_id: 11,
+        status: 'gata',
+        pickup_date: '2026-08-20',
+        due_date: null,
+        items: [{ type: 'covor', length_m: 2, width_m: 3, sqm: 6 }],
+        total_sqm: 6,
+        total_price: 102,
+      },
+    ],
+    delivered_orders: [
+      {
+        order_id: 9,
+        status: 'livrat',
+        pickup_date: '2026-07-01',
+        due_date: null,
+        items: [{ type: 'covor', length_m: 1, width_m: 1, sqm: 1 }],
+        total_sqm: 1,
+        total_price: null,
+      },
+    ],
+    total_open_items: 2,
+    total_open_sqm: 26,
+  };
+
+  it('conține salutul, starea fiecărei comenzi deschise (cu termenul unde există) și totalul', () => {
+    const text = buildCarpetClientSituationMessage(group, '0722000000');
+
+    expect(text).toContain('Bună ziua, Marius Constantinescu.');
+    expect(text).toContain(`1 covor (20 mp) — în lucru, termen ${formatRo('2026-08-29')}`);
+    expect(text).toContain('1 covor (6 mp) — gata de livrat');
+    expect(text).toContain('Total: 2 covoare, 26 mp.');
+    expect(text).toContain('0722000000');
+  });
+
+  it('NU include comenzile deja livrate în text (rămân doar în istoric, în panoul de detaliu)', () => {
+    const text = buildCarpetClientSituationMessage(group, '0722000000');
+    // Doar cele 2 comenzi DESCHISE apar ca rânduri — comanda #9 (livrată) nu trebuie să
+    // adauge un al treilea rând (nici să mărească totalul cu mp-ul/covorul ei).
+    expect(text.match(/^• /gm)).toHaveLength(2);
+    expect(text).toContain('Total: 2 covoare, 26 mp.');
+  });
+
+  it('omite rândul de contact dacă firma nu are telefon completat în Setări', () => {
+    const text = buildCarpetClientSituationMessage(group, '');
+    expect(text).not.toContain('Pentru ridicare');
+  });
+});
+
+describe('carpets.ipc — handlere clientSituation', () => {
+  let db: Db;
+  let cleanup: () => void;
+  let ctx: AppContext;
+  let clients: CarpetClientRepository;
+  let orders: CarpetOrderRepository;
+
+  const silentLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never;
+
+  beforeEach(() => {
+    const t = createTestDb();
+    db = t.db;
+    cleanup = t.cleanup;
+    clients = new CarpetClientRepository(db);
+    orders = new CarpetOrderRepository(db);
+
+    const paths: AppPaths = {
+      dataDir: '/tmp/nu-se-foloseste',
+      backupsDir: '/tmp/nu-se-foloseste/backups',
+      logsDir: '/tmp/nu-se-foloseste/logs',
+      dbFile: '/tmp/nu-se-foloseste/data/ddd-manager.sqlite',
+    };
+    ctx = new AppContext(db, paths, silentLogger, () => null, () => new Date('2026-08-25T09:00:00'));
+    ctx.settings.save({
+      ...ctx.settings.get(),
+      company: { ...ctx.settings.get().company, name: 'Firma Test SRL', phone: '0722000000' },
+    });
+
+    electronMock.handlers.clear();
+    vi.mocked(shell.openExternal).mockClear();
+    registerCarpetHandlers(ctx);
+  });
+
+  afterEach(() => cleanup());
+
+  async function invoke<T>(channel: string, payload?: unknown): Promise<IpcResult<T>> {
+    const fn = electronMock.handlers.get(channel);
+    if (!fn) throw new Error(`Handler neînregistrat: ${channel}`);
+    return (await fn({}, payload)) as IpcResult<T>;
+  }
+
+  it('carpets:clientSituation:get întoarce grupul agregat (deschise + istoric livrate)', async () => {
+    const clientId = clients.create({ name: 'Marius Constantinescu', phone: '0739066031', address: null, notes: null }).id;
+    orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-10',
+      due_date: '2026-08-29',
+      status: 'in_lucru',
+      price_per_sqm: 17,
+      notes: null,
+      items: [{ type: 'covor', length_m: 4, width_m: 5 }],
+    });
+    orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-07-01',
+      due_date: null,
+      status: 'livrat',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+
+    const result = await invoke<CarpetClientGroup>(IPC.carpets.clientSituation.get, { client_id: clientId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.open_orders).toHaveLength(1);
+    expect(result.data.delivered_orders).toHaveLength(1);
+  });
+
+  it('carpets:clientSituation:preview construiește textul folosind telefonul firmei din Setări', async () => {
+    const clientId = clients.create({ name: 'Marius Constantinescu', phone: '0739066031', address: null, notes: null }).id;
+    orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-08-10',
+      due_date: '2026-08-29',
+      status: 'in_lucru',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 4, width_m: 5 }],
+    });
+
+    const result = await invoke<{ body: string }>(IPC.carpets.clientSituation.preview, { client_id: clientId });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.body).toContain('Marius Constantinescu');
+    expect(result.data.body).toContain('0722000000');
+  });
+
+  it('carpets:clientSituation:preview eșuează clar dacă clientul nu are nicio comandă deschisă', async () => {
+    const clientId = clients.create({ name: 'Client Fără Comenzi', phone: '0711111111', address: null, notes: null }).id;
+    orders.create({
+      client_id: clientId,
+      client_name: null,
+      client_phone: null,
+      client_address: null,
+      client_notes: null,
+      pickup_date: '2026-07-01',
+      due_date: null,
+      status: 'livrat',
+      price_per_sqm: null,
+      notes: null,
+      items: [{ type: 'covor', length_m: 1, width_m: 1 }],
+    });
+
+    const result = await invoke(IPC.carpets.clientSituation.preview, { client_id: clientId });
+    expect(result.ok).toBe(false);
+  });
+
+  it('carpets:whatsapp:send trimite mesajul agregat pentru client_id și salvează un log', async () => {
+    const clientId = clients.create({ name: 'Marius Constantinescu', phone: '0739066031', address: null, notes: null }).id;
+    const mesajEditat = 'Mesaj editat manual, agregat, înainte de trimitere.';
+
+    const result = await invoke<{ opened: boolean }>(IPC.carpets.whatsapp.send, {
+      client_id: clientId,
+      message: mesajEditat,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.opened).toBe(true);
+    expect(shell.openExternal).toHaveBeenCalledTimes(1);
+
+    const log = db.get<{ client_id: number; message_preview: string }>(
+      `SELECT client_id, message_preview FROM carpet_message_logs ORDER BY id DESC LIMIT 1`,
+    );
+    expect(log).toBeDefined();
+    expect(log!.client_id).toBe(clientId);
+    expect(log!.message_preview).toBe(mesajEditat);
   });
 });

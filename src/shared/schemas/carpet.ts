@@ -295,6 +295,61 @@ export const carpetWhatsappSendSchema = z.object({
 
 export type CarpetWhatsappSend = z.infer<typeof carpetWhatsappSendSchema>;
 
+// ---------- Situația agregată a unui client ----------
+//
+// Cerința clientului: „vreau să am posibilitatea să dau mesaj WhatsApp către client și să
+// fie adunate covoarele per client” — un client poate avea mai multe comenzi (una „în
+// lucru”, alta „gata de livrat”), afișate ca rânduri separate în lista de comenzi; situația
+// agregată le adună într-un singur mesaj/panou. Grupată în principiu după `client_id`
+// (legătura există deja pe `carpet_orders`), dar unificăm ȘI după telefonul normalizat
+// (`carpet_clients.phone_normalized`) pentru cazul rar în care aceeași persoană a fost
+// introdusă din greșeală de două ori ca client separat — la fel ca „Administratori” în DDD.
+
+export const carpetClientIdSchema = z.object({ client_id: idSchema });
+
+export type CarpetClientIdInput = z.infer<typeof carpetClientIdSchema>;
+
+/** Un covor dintr-o comandă, în contextul situației agregate a unui client. */
+export interface CarpetClientOrderItemSummary {
+  type: CarpetItemType;
+  length_m: number;
+  width_m: number;
+  sqm: number;
+}
+
+/** O comandă rezumată în situația agregată a unui client. */
+export interface CarpetClientOrderSummary {
+  order_id: number;
+  status: CarpetOrderStatus;
+  pickup_date: string;
+  due_date: string | null;
+  items: CarpetClientOrderItemSummary[];
+  total_sqm: number;
+  /** Total informativ (mp × preț/mp) al ACESTEI comenzi, sau null dacă nu are preț. */
+  total_price: number | null;
+}
+
+/**
+ * Situația agregată a unui client: de regulă un singur `carpet_clients.id`, dar poate aduna
+ * mai mulți clienți cu ACELAȘI telefon normalizat (vezi `CarpetOrderRepository.getClientGroup`).
+ * `open_orders` = comenzile nelivrate încă (preluat/în lucru/gata) — singurele din mesajul
+ * agregat. `delivered_orders` = istoricul comenzilor deja livrate, afișat în panoul de
+ * detaliu dar NU trimis prin WhatsApp.
+ */
+export interface CarpetClientGroup {
+  /** id-urile tuturor clienților uniți în acest grup (de regulă unul singur). */
+  client_ids: number[];
+  display_name: string;
+  /** Telefonul (așa cum a fost scris) al clientului cel mai recent actualizat din grup. */
+  phone_display: string | null;
+  open_orders: CarpetClientOrderSummary[];
+  delivered_orders: CarpetClientOrderSummary[];
+  /** Total covoare peste TOATE comenzile deschise (suma count-urilor, nu doar ultima comandă). */
+  total_open_items: number;
+  /** Total mp peste TOATE comenzile deschise. */
+  total_open_sqm: number;
+}
+
 // ---------- Mesaje ----------
 
 export const carpetMessageListFilterSchema = z.object({

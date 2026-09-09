@@ -11,6 +11,8 @@ import type { Db } from '../database';
 import {
   normalizePhoneRo,
   type CarpetCalendarDayEntry,
+  type CarpetClientGroup,
+  type CarpetClientOrderSummary,
   type CarpetOrder,
   type CarpetOrderCreate,
   type CarpetOrderItem,
@@ -316,5 +318,95 @@ export class CarpetOrderRepository {
       id,
     );
     return this.getById(id)!;
+  }
+
+  /**
+   * Situația agregată a unui client — „adunate per client”, cerința clientului: aceeași
+   * persoană poate avea mai multe comenzi (rânduri separate în lista de comenzi), aici
+   * apar TOATE la un loc. Gruparea principală e după `client_id` (legătura există deja pe
+   * `carpet_orders`); unificăm și după telefonul normalizat (`phone_normalized`) pentru
+   * cazul rar al unui client introdus din greșeală de două ori — la fel ca la
+   * `computeAdministratorGroups` din DDD. Interogări BATCHED (IN (...)), un număr FIX
+   * (4), indiferent de câți clienți se unifică sau câte comenzi/covoare are grupul — nu
+   * există nicio interogare per comandă sau per covor.
+   */
+  getClientGroup(clientId: number): CarpetClientGroup | undefined {
+    interface ClientRow {
+      id: number;
+      name: string;
+      phone: string | null;
+      updated_at: string;
+    }
+
+    const client = this.db.get<ClientRow & { phone_normalized: string | null }>(
+      `SELECT id, name, phone, phone_normalized, updated_at FROM carpet_clients WHERE id = ?`,
+      clientId,
+    );
+    if (!client) return undefined;
+
+    // Fără telefon (sau telefon nenormalizabil) — clientul rămâne singur în propriul grup;
+    // NU se poate compara sigur cu alți clienți fără telefon (ar risca uniri greșite pe nume).
+    const siblings: ClientRow[] = client.phone_normalized
+      ? this.db.all<ClientRow>(
+          `SELECT id, name, phone, updated_at FROM carpet_clients WHERE phone_normalized = ?`,
+          client.phone_normalized,
+        )
+      : [{ id: client.id, name: client.name, phone: client.phone, updated_at: client.updated_at }];
+
+    const clientIds = siblings.map((c) => c.id);
+    const clientPlaceholders = clientIds.map(() => '?').join(',');
+
+    const rows = this.db.all<OrderListRow>(
+      `${LIST_SELECT} WHERE o.client_id IN (${clientPlaceholders}) ORDER BY o.pickup_date DESC, o.id DESC`,
+      ...clientIds,
+    );
+
+    const orderIds = rows.map((r) => r.id);
+    const itemsByOrder = new Map<number, CarpetOrderItem[]>();
+    if (orderIds.length > 0) {
+      const orderPlaceholders = orderIds.map(() => '?').join(',');
+      const items = this.db.all<CarpetOrderItem>(
+        `SELECT * FROM carpet_order_items WHERE order_id IN (${orderPlaceholders}) ORDER BY order_id, id`,
+        ...orderIds,
+      );
+      for (const item of items) {
+        const list = itemsByOrder.get(item.order_id);
+        if (list) list.push(item);
+        else itemsByOrder.set(item.order_id, [item]);
+      }
+    }
+
+    const toSummary = (r: OrderListRow): CarpetClientOrderSummary => ({
+      order_id: r.id,
+      status: r.status,
+      pickup_date: r.pickup_date,
+      due_date: r.due_date,
+      items: (itemsByOrder.get(r.id) ?? []).map((i) => ({
+        type: i.type,
+        length_m: i.length_m,
+        width_m: i.width_m,
+        sqm: i.sqm,
+      })),
+      total_sqm: r.total_sqm,
+      total_price: totalPrice(r.price_per_sqm, r.total_sqm),
+    });
+
+    const openOrders = rows.filter((r) => r.status !== 'livrat').map(toSummary);
+    const deliveredOrders = rows.filter((r) => r.status === 'livrat').map(toSummary);
+
+    // Nume/telefon afișate: clientul cel mai recent actualizat din grup (la fel ca
+    // `display_name` la Administratori) — de regulă identic, diferă doar în cazul rar al
+    // unui duplicat introdus manual de două ori.
+    const mostRecent = [...siblings].sort((a, b) => (a.updated_at > b.updated_at ? -1 : 1))[0];
+
+    return {
+      client_ids: clientIds,
+      display_name: mostRecent.name,
+      phone_display: mostRecent.phone,
+      open_orders: openOrders,
+      delivered_orders: deliveredOrders,
+      total_open_items: openOrders.reduce((sum, o) => sum + o.items.length, 0),
+      total_open_sqm: round2(openOrders.reduce((sum, o) => sum + o.total_sqm, 0)),
+    };
   }
 }

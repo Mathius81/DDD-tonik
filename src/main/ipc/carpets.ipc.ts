@@ -15,6 +15,7 @@ import {
   carpetClientCreateSchema,
   carpetClientUpdateSchema,
   carpetClientListFilterSchema,
+  carpetClientIdSchema,
   carpetOrderCreateSchema,
   carpetOrderUpdateSchema,
   carpetOrderListFilterSchema,
@@ -23,11 +24,38 @@ import {
   carpetSettingsUpdateSchema,
   carpetMessageListFilterSchema,
   carpetWhatsappSendSchema,
+  carpetOrderStatusLabels,
+  type CarpetClientGroup,
 } from '../../shared/schemas/carpet';
 import { idSchema } from '../../shared/schemas/common';
-import { addMonthsClamped } from '../../shared/dates';
+import { addMonthsClamped, formatRo } from '../../shared/dates';
+import { pluralRo } from '../../shared/text';
 import { normalizePhoneE164 } from '../services/messaging/template-render';
 import type { AppContext } from '../app-context';
+
+/**
+ * Textul agregat cu situația comenzilor DESCHISE ale unui client (preluat/în lucru/gata) —
+ * cerința clientului: „să fie adunate covoarele per client” într-un singur mesaj, nu unul
+ * separat per comandă. Comenzile deja livrate NU intră aici (rămân doar în istoricul din
+ * panoul de detaliu). Funcție pură (fără acces la bază), testabilă direct — la fel ca
+ * `buildAdministratorSituationMessage` din DDD.
+ */
+export function buildCarpetClientSituationMessage(group: CarpetClientGroup, companyPhone: string): string {
+  const lines: string[] = [
+    `Bună ziua, ${group.display_name}.`,
+    '',
+    'Situația comenzilor dumneavoastră:',
+  ];
+  for (const o of group.open_orders) {
+    const itemsPart = `${pluralRo(o.items.length, 'covor', 'covoare')} (${o.total_sqm} mp)`;
+    const statusLabel = carpetOrderStatusLabels[o.status].toLowerCase();
+    const duePart = o.due_date ? `, termen ${formatRo(o.due_date)}` : '';
+    lines.push(`• ${itemsPart} — ${statusLabel}${duePart}`);
+  }
+  lines.push('', `Total: ${pluralRo(group.total_open_items, 'covor', 'covoare')}, ${group.total_open_sqm} mp.`);
+  if (companyPhone) lines.push('', `Pentru ridicare ne puteți contacta la ${companyPhone}.`);
+  return lines.join('\n');
+}
 
 /** Handlere IPC pentru spațiul de lucru Covoare — complet separate de DDD. */
 export function registerCarpetHandlers(ctx: AppContext): void {
@@ -140,6 +168,27 @@ export function registerCarpetHandlers(ctx: AppContext): void {
   handle(IPC.carpets.messages.list, carpetMessageListFilterSchema, (filter) =>
     ctx.carpetMessages.list(filter),
   );
+
+  // Situația agregată a unui client — „adunate per client” (vezi getClientGroup): toate
+  // comenzile lui, folosită de panoul de detaliu (click pe rândul din Comenzi) și de
+  // butonul de WhatsApp agregat. Trimiterea efectivă rămâne pe `carpets.whatsapp.send` de
+  // mai jos (aceeași comandă asistată, un singur `client_id` — orice client din grup are
+  // ACELAȘI telefon normalizat, deci funcționează indiferent care client_id se trimite).
+  handle(IPC.carpets.clientSituation.get, carpetClientIdSchema, ({ client_id }) => {
+    const group = ctx.carpetOrders.getClientGroup(client_id);
+    if (!group) throw new UserFacingError('Clientul nu a fost găsit.');
+    return group;
+  });
+
+  handle(IPC.carpets.clientSituation.preview, carpetClientIdSchema, ({ client_id }) => {
+    const group = ctx.carpetOrders.getClientGroup(client_id);
+    if (!group) throw new UserFacingError('Clientul nu a fost găsit.');
+    if (group.open_orders.length === 0) {
+      throw new UserFacingError('Acest client nu are comenzi deschise în acest moment.');
+    }
+    const company = ctx.settings.get().company;
+    return { body: buildCarpetClientSituationMessage(group, company.phone) };
+  });
 
   // WhatsApp — mod asistat: deschide wa.me cu mesajul pregătit; trimiterea rămâne manuală
   // (niciodată automată). Vezi tyres.ipc.ts pentru același tipar.

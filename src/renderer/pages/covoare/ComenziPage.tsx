@@ -20,6 +20,8 @@ import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { fmtDate } from '../../components/dateUtils';
 import { OrderFormModal } from './OrderFormModal';
+import { CarpetClientWhatsappButton } from './CarpetClientWhatsappButton';
+import { CarpetClientDetailDrawer } from './CarpetClientDetailDrawer';
 import { formatMp, formatLei, carpetOrderStatusTone } from './covoare-ui';
 import {
   carpetOrderStatuses,
@@ -54,6 +56,9 @@ export function ComenziPage() {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<CarpetOrderWithItems | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  // Clientul selectat pentru panoul de detaliu (click pe rând) — „adunate per client”:
+  // toate comenzile lui (deschise + istoric livrate), nu doar rândul pe care s-a dat click.
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -176,7 +181,7 @@ export function ComenziPage() {
             recordsPerPage={PAGE_SIZE}
             page={page}
             onPageChange={setPage}
-            onRowClick={({ record }) => openEdit(record)}
+            onRowClick={({ record }) => setSelectedClientId(record.client_id)}
             highlightOnHover
             verticalSpacing={6}
             noRecordsText="Nicio comandă nu corespunde filtrelor."
@@ -253,19 +258,22 @@ export function ComenziPage() {
               {
                 accessor: 'actions',
                 title: '',
-                width: 44,
+                width: 80,
                 render: (r) => (
-                  <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    aria-label="Editează comanda"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEdit(r);
-                    }}
-                  >
-                    <IconPencil size={16} />
-                  </ActionIcon>
+                  <Group gap={4} wrap="nowrap" justify="flex-end">
+                    <CarpetClientWhatsappButton clientId={r.client_id} onSent={reload} />
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      aria-label="Editează comanda"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEdit(r);
+                      }}
+                    >
+                      <IconPencil size={16} />
+                    </ActionIcon>
+                  </Group>
                 ),
               },
             ]}
@@ -283,6 +291,13 @@ export function ComenziPage() {
           setModalOpen(false);
           reload();
         }}
+      />
+
+      <CarpetClientDetailDrawer
+        clientId={selectedClientId}
+        opened={selectedClientId !== null}
+        onClose={() => setSelectedClientId(null)}
+        onSent={reload}
       />
     </Stack>
   );

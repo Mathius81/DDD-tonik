@@ -155,6 +155,14 @@ export const IPC = {
     messages: {
       list: 'carpets:messages:list',
     },
+    /**
+     * Situația agregată a unui client — „adunate per client” (toate comenzile lui într-un
+     * singur panou/mesaj, nu unul separat per comandă). Vezi `carpets.repo::getClientGroup`.
+     */
+    clientSituation: {
+      get: 'carpets:clientSituation:get',
+      preview: 'carpets:clientSituation:preview',
+    },
     /** Mesaj WhatsApp asistat: deschide wa.me cu textul pregătit, ca în DDD/Cauciucuri. */
     whatsapp: {
       send: 'carpets:whatsapp:send',

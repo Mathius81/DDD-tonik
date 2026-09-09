@@ -144,6 +144,10 @@ const api = {
     messages: {
       list: invoke(IPC.carpets.messages.list),
     },
+    clientSituation: {
+      get: invoke(IPC.carpets.clientSituation.get),
+      preview: invoke(IPC.carpets.clientSituation.preview),
+    },
     whatsapp: {
       send: invoke(IPC.carpets.whatsapp.send),
     },
