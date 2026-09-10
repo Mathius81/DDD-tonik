@@ -23,7 +23,8 @@ export function logoAttachment() {
 
 /**
  * Șablonul HTML comun al emailurilor Tonik: antet cu logo, corp, subsol cu
- * datele firmei. `bodyHtml` e conținutul deja formatat (paragrafe/blocuri).
+ * datele firmei. `bodyHtml` e conținutul deja formatat (paragrafe/blocuri), nu text
+ * brut: apelanții folosesc textToHtml înainte, fără o a doua escapare aici.
  */
 export function renderEmailHtml(bodyHtml: string, company: CompanySettings): string {
   const footerParts = [
@@ -31,7 +32,7 @@ export function renderEmailHtml(bodyHtml: string, company: CompanySettings): str
     company.phone && `Tel: ${company.phone}`,
     company.email,
     company.website,
-  ].filter(Boolean);
+  ].filter(Boolean).map(esc);
 
   return `<!doctype html>
 <html lang="ro">
@@ -43,7 +44,7 @@ export function renderEmailHtml(bodyHtml: string, company: CompanySettings): str
         style="max-width:600px;width:100%;background-color:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e3e7e5;">
         <tr>
           <td align="center" style="background-color:#0e1b16;padding:20px 24px;">
-            <img src="cid:${LOGO_CID}" alt="${company.name || 'Tonik'}" width="180" style="display:block;max-width:180px;height:auto;">
+            <img src="cid:${escAttribute(LOGO_CID)}" alt="${escAttribute(company.name || 'Tonik')}" width="180" style="display:block;max-width:180px;height:auto;">
           </td>
         </tr>
         <tr>
@@ -66,9 +67,14 @@ export function renderEmailHtml(bodyHtml: string, company: CompanySettings): str
 </html>`;
 }
 
-/** Escape minim pentru text interpolat în HTML. */
+/** Escape pentru noduri text HTML; ghilimelele și apostrofurile sunt inerte aici. */
 export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** În atribute escapăm suplimentar delimitatorii, fără să recodăm entitățile. */
+function escAttribute(s: string): string {
+  return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /** Text simplu (cu linii goale ca separatoare) → paragrafe HTML. */

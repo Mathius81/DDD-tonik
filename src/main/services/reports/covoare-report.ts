@@ -60,7 +60,12 @@ export function buildCovoareReport(
       for (const o of todayPickups) lines.push(fmtOrder(o));
       lines.push('');
     }
-    total = readyToDeliver.length + todayPickups.length;
+    // Numărăm reuniunea din bază, nu lungimile listelor limitate la 20. Fiecare
+    // comandă contribuie o dată, inclusiv cea în lucru preluată într-o zi anterioară.
+    total = ctx.db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM carpet_orders WHERE status IN ('in_lucru', 'gata') OR pickup_date = ?",
+      todayIso,
+    )?.n ?? 0;
   } else {
     const dueTomorrow = ctx.carpetOrders.listDueOn(anchorIso, 20);
     const readyToDeliver = ctx.carpetOrders.listByStatus('gata', 20);
@@ -80,7 +85,10 @@ export function buildCovoareReport(
       for (const o of readyToDeliver) lines.push(fmtOrder(o));
       lines.push('');
     }
-    total = dueTomorrow.length + readyToDeliver.length;
+    total = ctx.db.get<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM carpet_orders WHERE (due_date = ? AND status != 'livrat') OR status = 'gata'",
+      anchorIso,
+    )?.n ?? 0;
   }
 
   const isEmpty = total === 0;

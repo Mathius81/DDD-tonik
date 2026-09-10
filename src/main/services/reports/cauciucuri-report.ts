@@ -8,9 +8,9 @@
  * sau distribuirea fără acordul scris al autorului sunt interzise.
  */
 import type { AppContext } from '../../app-context';
-import { formatRo } from '../../../shared/dates';
+import { addDaysIso, formatRo } from '../../../shared/dates';
 import { pluralRo } from '../../../shared/text';
-import { tyreSeasonLabels, type TyreStorageListItem } from '../../../shared/schemas/tyre';
+import { tyreSeasonLabels, type TyreAppointmentListItem, type TyreStorageListItem } from '../../../shared/schemas/tyre';
 import type { ReportPeriod } from '../../../shared/schemas/settings';
 import type { ReportContent } from './report-types';
 
@@ -18,16 +18,15 @@ function fmtSet(s: TyreStorageListItem): string {
   return `  • ${s.client_name}${s.client_phone ? ` (${s.client_phone})` : ''} — ${s.plate_number} · ${s.size} · ${tyreSeasonLabels[s.season]}, ${s.quantity} buc · intrat ${formatRo(s.date_in)}`;
 }
 
+function fmtAppointment(a: TyreAppointmentListItem): string {
+  return `  • ${a.appointment_time} — ${a.client_name}${a.client_phone ? ` (${a.client_phone})` : ''} · ${a.plate_number} · ${a.work_type}${a.season ? ` · ${tyreSeasonLabels[a.season]}` : ''}`;
+}
+
 /**
  * Raportul Cauciucuri (spațiul de lucru „cauciucuri”, complet separat de DDD/Covoare).
- *
- * Aici nu există niciun concept de „termen” — depozitul e doar seturi intrate/ridicate,
- * fără scadențe. Regula generală „raportul de seară se uită la ziua următoare” nu se
- * mapează direct, așa că am adaptat-o deliberat:
- *  - Dimineața: fotografia curentă a depozitului — cele mai vechi seturi în depozit
- *    (candidați pentru un reminder către client).
- *  - Seara: recapitulare a INTRĂRILOR DE ASTĂZI (nu o proiecție spre mâine — nu există
- *    ce să proiectăm), utilă ca „ce s-a întâmplat azi la depozit”.
+ * Dimineața: fotografia depozitului, cu cele mai vechi seturi încă neridicate.
+ * Seara: programările nefinalizate de MÂINE, ordonate după oră, plus recapitularea
+ * intrărilor de AZI în depozit. Depozitul nu are scadențe; programările au dată și oră.
  */
 export function buildCauciucuriReport(
   ctx: AppContext,
@@ -35,7 +34,7 @@ export function buildCauciucuriReport(
   period: ReportPeriod,
 ): ReportContent {
   const lines: string[] = [];
-  let total = 0;
+  const summaryParts: string[] = [];
 
   if (period === 'dimineata') {
     const inStorage = ctx.tyreStorage.listInStorage(20);
@@ -51,39 +50,58 @@ export function buildCauciucuriReport(
       for (const s of inStorage) lines.push(fmtSet(s));
       lines.push('');
     }
-    total = inStorage.length;
+    if (totalInStorage > 0) {
+      summaryParts.push(`${pluralRo(totalInStorage, 'set', 'seturi')} în depozit de urmărit`);
+    }
   } else {
+    const tomorrowIso = addDaysIso(todayIso, 1);
+    // Filtrăm înainte de paginare: anulările/finalizările nu consumă limita de 20.
+    const pending = (['programat', 'venit'] as const).map((status) => ctx.tyreAppointments.list({
+      date: tomorrowIso, status, page: 1, pageSize: 20,
+    }));
+    const appointmentCount = pending.reduce((sum, page) => sum + page.total, 0);
+    const appointments = pending.flatMap((page) => page.items)
+      .sort((a, b) => a.appointment_time.localeCompare(b.appointment_time) || a.id - b.id)
+      .slice(0, 20);
     const intakesToday = ctx.tyreStorage.listIntakesOn(todayIso, 20);
+    const intakeCount = ctx.db.get<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM tyre_storage_sets WHERE date_in = ?', todayIso,
+    )?.n ?? 0;
 
-    lines.push(`Raport Cauciucuri — recapitulare ${formatRo(todayIso)}`);
+    lines.push(`Raport Cauciucuri — pregătire ${formatRo(tomorrowIso)}`);
     lines.push('');
 
-    if (intakesToday.length > 0) {
-      lines.push(`INTRĂRI ASTĂZI ÎN DEPOZIT (${intakesToday.length})`);
-      for (const s of intakesToday) lines.push(fmtSet(s));
-      lines.push('');
+    if (appointmentCount > 0) {
+      lines.push(`PROGRAMĂRI MÂINE (${appointmentCount})`);
+      for (const a of appointments) lines.push(fmtAppointment(a));
+      if (appointmentCount > appointments.length) {
+        lines.push(`  … încă ${pluralRo(appointmentCount - appointments.length, 'programare', 'programări')}; vezi lista completă în aplicație.`);
+      }
+      summaryParts.push(`${pluralRo(appointmentCount, 'programare', 'programări')} pentru mâine`);
+    } else {
+      lines.push('Nicio programare pentru mâine.');
     }
-    total = intakesToday.length;
+    lines.push('');
+
+    if (intakeCount > 0) {
+      lines.push(`INTRĂRI ASTĂZI ÎN DEPOZIT (${intakeCount})`);
+      for (const s of intakesToday) lines.push(fmtSet(s));
+      summaryParts.push(`${pluralRo(intakeCount, 'set nou intrat', 'seturi noi intrate')} azi în depozit`);
+    } else {
+      lines.push('Nicio intrare nouă în depozit astăzi.');
+    }
+    lines.push('');
   }
 
-  const isEmpty = total === 0;
-  if (isEmpty) {
-    lines.push(
-      period === 'dimineata'
-        ? 'Niciun set în depozit momentan.'
-        : 'Nicio intrare nouă în depozit astăzi.',
-    );
+  const isEmpty = summaryParts.length === 0;
+  if (isEmpty && period === 'dimineata') {
+    lines.push('Niciun set în depozit momentan.');
     lines.push('');
   }
   lines.push('—');
   lines.push('Trimis automat de Tonik.');
 
-  const summary =
-    total > 0
-      ? period === 'dimineata'
-        ? `${pluralRo(total, 'set', 'seturi')} în depozit de urmărit.`
-        : `${pluralRo(total, 'set nou', 'seturi noi')} intrate azi în depozit.`
-      : 'Nimic de raportat la Cauciucuri.';
+  const summary = isEmpty ? 'Nimic de raportat la Cauciucuri.' : `${summaryParts.join(' · ')}.`;
 
   return {
     title: 'Raport Cauciucuri',

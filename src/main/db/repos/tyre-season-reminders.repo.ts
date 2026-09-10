@@ -27,7 +27,7 @@ export class TyreSeasonReminderRepository {
   /**
    * Clienți eligibili pentru reminder-ul sezonului `season` (sezonul care tocmai începe
    * fereastra de schimb): cei cu un set din acel sezon aflat acum în depozit (motiv
-   * `storage`) și cei al căror ultim schimb înregistrat a fost spre sezonul opus (motiv
+   * `storage`) și cei al căror ultim schimb după data lucrării a fost spre sezonul opus (motiv
    * `past_swap` — probabil e vremea să facă schimbul înapoi). Un client apare o singură
    * dată, cu motivul `storage` preferat dacă se potrivesc ambele.
    */
@@ -48,7 +48,12 @@ export class TyreSeasonReminderRepository {
          JOIN tyre_vehicles v ON v.id = sw.vehicle_id
          JOIN tyre_clients c ON c.id = v.client_id
         WHERE sw.to_season = ?
-          AND sw.id = (SELECT MAX(id) FROM tyre_swaps sw2 WHERE sw2.vehicle_id = sw.vehicle_id)`,
+          AND sw.id = (
+            SELECT sw2.id FROM tyre_swaps sw2
+             WHERE sw2.vehicle_id = sw.vehicle_id
+             ORDER BY sw2.swap_date DESC, sw2.id DESC
+             LIMIT 1
+          )`,
       season,
       opposite,
     );
