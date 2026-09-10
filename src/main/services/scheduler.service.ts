@@ -184,7 +184,7 @@ export class SchedulerService {
               channel: 'whatsapp',
               recipient: contact!.phone!,
               template_id: templateUsedId,
-              message_preview: body.slice(0, 500),
+              message_preview: body,
               status: result.ok ? 'accepted_by_provider' : 'failed',
               provider_message_id: result.wamid ?? null,
               error_message: result.error ?? null,
@@ -225,7 +225,16 @@ export class SchedulerService {
             this.ctx.reminders.setStatus(reminder.id, 'skipped');
             break;
           }
-          const { body, subject } = this.messaging.buildMessage(contact.id, followup.id, 'email');
+          const { body, subject, templateUsedId } = this.messaging.buildMessage(contact.id, followup.id, 'email');
+          if (!body.trim()) {
+            this.failOrRetry(
+              reminder,
+              templateUsedId === null
+                ? 'Nu se poate trimite: niciun șablon activ pe canalul email.'
+                : 'Șablonul activ pe canalul email produce un mesaj gol.',
+            );
+            break;
+          }
           const result = await this.messaging.emailProvider().send({
             to: contact.email,
             subject: subject ?? `Programare ${service?.name ?? ''}`,
@@ -241,7 +250,7 @@ export class SchedulerService {
             channel: 'email',
             recipient: contact.email,
             template_id: null,
-            message_preview: body.slice(0, 500),
+            message_preview: body,
             status: result.ok ? 'accepted_by_provider' : 'failed',
             provider_message_id: result.providerMessageId ?? null,
             error_message: result.error ?? null,

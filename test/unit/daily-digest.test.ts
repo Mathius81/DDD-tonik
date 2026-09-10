@@ -87,7 +87,7 @@ describe('DailyDigestService', () => {
   function makeDigest(nowIso: string) {
     const paths: AppPaths = { dataDir: '', backupsDir: '', logsDir: '', dbFile: '' };
     const ctx = new AppContext(db, paths, silentLogger, () => null, () => new Date(nowIso));
-    const messaging = new MessagingService(ctx, new SecretsService(ctx.settings));
+    const messaging = new MessagingService(ctx, new SecretsService(ctx));
     const notifications = new NotificationService(ctx);
     const digest = new DailyDigestService(ctx, messaging, notifications);
     return { ctx, messaging, notifications, digest };

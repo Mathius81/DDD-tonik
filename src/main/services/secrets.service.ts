@@ -8,7 +8,7 @@
  * sau distribuirea fără acordul scris al autorului sunt interzise.
  */
 import { safeStorage } from 'electron';
-import type { SettingsRepository } from '../db/repos/settings.repo';
+import type { AppContext } from '../app-context';
 
 const SECRET_PREFIX = 'secret_';
 
@@ -18,18 +18,20 @@ const SECRET_PREFIX = 'secret_';
  * Secretele NU sunt trimise niciodată către renderer.
  */
 export class SecretsService {
-  constructor(private settings: SettingsRepository) {}
+  // Contextul își păstrează identitatea la recuperarea unei restaurări eșuate;
+  // repository-ul de setări se poate schimba odată cu redeschiderea bazei.
+  constructor(private ctx: Pick<AppContext, 'settings'>) {}
 
   set(key: 'smtp_password' | 'whatsapp_access_token', value: string): void {
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('Criptarea locală nu este disponibilă pe acest sistem.');
     }
     const encrypted = safeStorage.encryptString(value);
-    this.settings.setRaw(`${SECRET_PREFIX}${key}`, encrypted.toString('base64'));
+    this.ctx.settings.setRaw(`${SECRET_PREFIX}${key}`, encrypted.toString('base64'));
   }
 
   get(key: 'smtp_password' | 'whatsapp_access_token'): string | null {
-    const stored = this.settings.getRaw(`${SECRET_PREFIX}${key}`);
+    const stored = this.ctx.settings.getRaw(`${SECRET_PREFIX}${key}`);
     if (!stored) return null;
     try {
       return safeStorage.decryptString(Buffer.from(stored, 'base64'));
@@ -39,6 +41,6 @@ export class SecretsService {
   }
 
   delete(key: 'smtp_password' | 'whatsapp_access_token'): void {
-    this.settings.deleteRaw(`${SECRET_PREFIX}${key}`);
+    this.ctx.settings.deleteRaw(`${SECRET_PREFIX}${key}`);
   }
 }

@@ -8,7 +8,7 @@
  * sau distribuirea fără acordul scris al autorului sunt interzise.
  */
 import { createPublicKey, verify as edVerify } from 'node:crypto';
-import type { SettingsRepository } from '../db/repos/settings.repo';
+import type { AppContext } from '../app-context';
 import type { Logger } from '../logger';
 
 /**
@@ -41,8 +41,10 @@ function b64urlDecode(s: string): Buffer {
 }
 
 export class LicenseService {
+  // Contextul își păstrează identitatea la recuperarea unei restaurări eșuate;
+  // repository-ul de setări se poate schimba odată cu redeschiderea bazei.
   constructor(
-    private settings: SettingsRepository,
+    private ctx: Pick<AppContext, 'settings'>,
     private logger: Logger,
     private now: () => Date = () => new Date(),
   ) {}
@@ -52,9 +54,9 @@ export class LicenseService {
     const pad = (n: number) => String(n).padStart(2, '0');
     const d = this.now();
     const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const maxSeen = this.settings.getRaw(MAX_SEEN_DATE_KEY) ?? '';
+    const maxSeen = this.ctx.settings.getRaw(MAX_SEEN_DATE_KEY) ?? '';
     if (today > maxSeen) {
-      this.settings.setRaw(MAX_SEEN_DATE_KEY, today);
+      this.ctx.settings.setRaw(MAX_SEEN_DATE_KEY, today);
       return today;
     }
     return maxSeen;
@@ -84,7 +86,7 @@ export class LicenseService {
 
   /** Starea curentă a licenței. */
   check(): LicenseState {
-    const token = this.settings.getRaw(LICENSE_KEY);
+    const token = this.ctx.settings.getRaw(LICENSE_KEY);
     if (!token) return { status: 'missing' };
     const exp = this.parseToken(token);
     if (!exp) return { status: 'missing' };
@@ -103,7 +105,7 @@ export class LicenseService {
     const exp = this.parseToken(token);
     if (!exp) throw new Error('Cheia introdusă nu este validă.');
     if (this.effectiveToday() > exp) throw new Error('Cheia introdusă este deja expirată.');
-    this.settings.setRaw(LICENSE_KEY, token.trim());
+    this.ctx.settings.setRaw(LICENSE_KEY, token.trim());
     this.logger.info(`Licență activată, valabilă până la ${exp}`);
     return this.check();
   }

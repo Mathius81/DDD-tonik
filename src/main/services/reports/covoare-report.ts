@@ -16,7 +16,7 @@ import type { ReportContent } from './report-types';
 
 function fmtOrder(o: CarpetOrderListItem, extra?: string): string {
   const pieces = pluralRo(o.item_count, 'covor', 'covoare');
-  return `  • ${o.client_name}${o.client_phone ? ` (${o.client_phone})` : ''} — ${pieces}, ${o.total_sqm} mp${extra ?? ''}`;
+  return `  • ${o.client_name}${o.client_phone ? ` (${o.client_phone})` : ''} — ${pieces}, ${Math.round(o.total_sqm * 100) / 100} mp${extra ?? ''}`;
 }
 
 /**

@@ -23,7 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconBrandWhatsapp, IconMail, IconMessage2 } from '@tabler/icons-react';
 import { ddd } from '../../api/ddd';
 import { useIpcQuery, runMutation } from '../../api/useIpc';
-import { fmtDateTime } from '../../components/dateUtils';
+import { fmtUtcDateTime } from '../../components/dateUtils';
 import { EmptyState } from '../../components/EmptyState';
 import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -125,7 +125,7 @@ export function MesajePage() {
                 width: 140,
                 render: (m) => (
                   <Text size="var(--fs-small)" className="tonik-num" c="var(--text-muted)">
-                    {fmtDateTime(m.created_at)}
+                    {fmtUtcDateTime(m.created_at)}
                   </Text>
                 ),
               },
@@ -253,7 +253,7 @@ export function MesajePage() {
             <Divider />
             <div>
               <Text size="var(--fs-small)" c="var(--text-muted)" mb={4}>
-                Mesaj · {fmtDateTime(selected.created_at)}
+                Mesaj · {fmtUtcDateTime(selected.created_at)}
               </Text>
               <Card padding="var(--sp-3)" bg="var(--bg-subtle)" withBorder={false} shadow="none">
                 <Text size="var(--fs-body)" style={{ whiteSpace: 'pre-wrap' }}>

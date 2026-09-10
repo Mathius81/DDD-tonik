@@ -158,6 +158,7 @@ export class ContactRepository {
   private computeAdministratorGroups(todayIso: string): AdministratorGroup[] {
     interface Row {
       contact_id: number;
+      do_not_contact: number;
       name: string;
       phone: string;
       updated_at: string;
@@ -166,7 +167,7 @@ export class ContactRepository {
       association_active: number;
     }
     const rows = this.db.all<Row>(
-      `SELECT c.id AS contact_id, c.name, c.phone, c.updated_at,
+      `SELECT c.id AS contact_id, c.do_not_contact, c.name, c.phone, c.updated_at,
               a.id AS association_id, a.name AS association_name, a.active AS association_active
        FROM contacts c
        JOIN associations a ON a.id = c.association_id
@@ -277,6 +278,9 @@ export class ContactRepository {
       const names = [...new Set(contactsForPhone.map((row) => row.name))];
 
       groups.push({
+        // Verificăm TOATE contactele înaintea deduplicării pe asociație: un duplicat
+        // mai recent nu poate anula opțiunea explicită „Nu contacta”.
+        do_not_contact: contactsForPhone.some((row) => !!row.do_not_contact),
         phone,
         // contactsForPhone[0] = cel mai recent actualizat contact cu acest telefon (global).
         phone_display: contactsForPhone[0].phone,

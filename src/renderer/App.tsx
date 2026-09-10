@@ -39,11 +39,16 @@ import { SchimburiPage } from './pages/cauciucuri/SchimburiPage';
 import { ReminderePage as CauciucuriReminderePage } from './pages/cauciucuri/ReminderePage';
 import { MesajePage as CauciucuriMesajePage } from './pages/cauciucuri/MesajePage';
 import { SetariPage as CauciucuriSetariPage } from './pages/cauciucuri/SetariPage';
-import { WORKSPACES, getInitialRoute } from './workspace';
+import { WORKSPACES, getInitialRoute, getStoredActiveWorkspace, workspaceHome } from './workspace';
 
 /** La pornire (sau la navigare spre „/”) deschidem ultimul spațiu folosit. */
 function RootRedirect() {
   return <Navigate to={getInitialRoute()} replace />;
+}
+
+/** O rută dispărută nu poate refolosi exact istoricul care a dus aici. */
+function RedirectionareRutaLipsa() {
+  return <Navigate to={workspaceHome(getStoredActiveWorkspace())} replace />;
 }
 
 /** Rută veche fără prefix pentru o asociație (ex. click pe notificare) → /ddd/asociatii/:id. */
@@ -166,7 +171,7 @@ const router = createHashRouter([
   { path: '/remindere', element: <Navigate to="/ddd/remindere" replace /> },
   { path: '/mesaje', element: <Navigate to="/ddd/mesaje" replace /> },
   { path: '/setari', element: <Navigate to="/ddd/setari" replace /> },
-  { path: '*', element: <RootRedirect />, errorElement: <EroareNeprevazuta /> },
+  { path: '*', element: <RedirectionareRutaLipsa />, errorElement: <EroareNeprevazuta /> },
 ]);
 
 export function App() {

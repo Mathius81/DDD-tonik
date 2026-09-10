@@ -121,8 +121,22 @@ export class MessagingService {
     if (contact.do_not_contact) throw new UserFacingError('Contactul este marcat „Nu contacta”.');
 
     const body = log.message_preview;
+    // Versiunile vechi salvau numai primele 500 de caractere (la fel și jurnalul
+    // WhatsApp al scheduler-ului). Nu putem deosebi o astfel de copie de un text
+    // complet de exact 500 de caractere; refuzăm prudent, fără a inventa restul.
+    if (body.length === 500) {
+      throw new UserFacingError(
+        'Textul salvat poate fi trunchiat la 500 de caractere. Compune un mesaj nou din fișa contactului sau din Administratori.',
+      );
+    }
+    if (!body.trim()) throw new UserFacingError('Mesajul salvat este gol. Compune un mesaj nou.');
 
     if (log.channel === 'whatsapp') {
+      // Un mesaj agregat este ancorat doar de primul contact; interdicția poate
+      // aparține altei asociații sau unui duplicat al aceluiași administrator.
+      if (contact.phone && this.ctx.contacts.getAdministratorGroupByPhone(contact.phone, this.ctx.todayIso())?.do_not_contact) {
+        throw new UserFacingError('Contactul este marcat „Nu contacta”.');
+      }
       if (!contact.phone) throw new UserFacingError('Contactul nu are număr de telefon.');
       const phone = normalizePhoneE164(contact.phone);
       if (!phone) throw new UserFacingError(`Numărul „${contact.phone}” nu pare valid.`);
@@ -190,7 +204,7 @@ export class MessagingService {
       channel: 'whatsapp',
       recipient: contact.phone,
       template_id: input.template_id,
-      message_preview: body.slice(0, 500),
+      message_preview: body,
       status: 'prepared',
     });
     this.ctx.logger.info(`WhatsApp asistat deschis pentru contact #${contact.id}`);
@@ -229,7 +243,7 @@ export class MessagingService {
       channel: 'whatsapp',
       recipient: contact.phone,
       template_id: input.template_id ?? templateUsedId,
-      message_preview: body.slice(0, 500),
+      message_preview: body,
       status: result.ok ? 'accepted_by_provider' : 'failed',
       provider_message_id: result.wamid ?? null,
       error_message: result.error ?? null,
@@ -315,7 +329,7 @@ export class MessagingService {
         channel: 'email',
         recipient: contact.email,
         template_id: input.template_id ?? templateUsedId,
-        message_preview: body.slice(0, 500),
+        message_preview: body,
         status: 'prepared',
       });
       this.ctx.logger.info(`Email asistat (mailto) deschis pentru contact #${contact.id}`);
@@ -339,7 +353,7 @@ export class MessagingService {
       channel: 'email',
       recipient: contact.email,
       template_id: input.template_id ?? templateUsedId,
-      message_preview: body.slice(0, 500),
+      message_preview: body,
       status: result.ok ? 'accepted_by_provider' : 'failed',
       provider_message_id: result.providerMessageId ?? null,
       error_message: result.error ?? null,

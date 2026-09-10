@@ -14,6 +14,7 @@ import { parseIso, toIsoDate } from '../../shared/dates';
 
 /**
  * Generează reminderele unui follow-up conform regulilor active.
+ * - scadențele deja trecute rămân în evidență, fără remindere noi automate;
  * - scheduled_at = due_date - offset_days, la ora 09:00 locală;
  * - dacă momentul rezultat e deja în trecut față de azi, reminderul se
  *   programează pentru azi (nu se pierde — spec #20);
@@ -25,6 +26,10 @@ export function generateRemindersForFollowup(
   rules: ReminderRule[],
   todayIso: string,
 ): number {
+  // Completarea retroactivă a istoricului nu trebuie să contacteze automat clientul.
+  // Nu eliminăm remindere existente; această regulă se aplică numai la generare.
+  if (followup.due_date < todayIso) return 0;
+
   let created = 0;
   for (const rule of rules) {
     if (!rule.active) continue;

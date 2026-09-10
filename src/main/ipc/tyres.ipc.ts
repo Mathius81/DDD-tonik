@@ -199,7 +199,7 @@ export function registerTyreHandlers(ctx: AppContext): void {
       // ca una automată, altfel clientul ar primi și mesajul automat ulterior.
       season_key: source === 'season_reminder' && season ? seasonReminders.seasonKeyFor(season) : null,
       recipient: client.phone,
-      message_preview: message.slice(0, 500),
+      message_preview: message,
       status: 'prepared',
       created_at: ctx.nowLocalIso(),
     });

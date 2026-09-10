@@ -115,6 +115,29 @@ describe('saveIntervention — ciclul complet (spec #15, #60, #63)', () => {
     expect(r30!.scheduled_at).toBe(`${TODAY} 09:00:00`);
   });
 
+  it.each(['2026-05-12', '2025-05-13'])('REGRESIE P1: intervenția retroactivă din %s păstrează scadența trecută fără remindere automate', (data) => {
+    const reguli = [
+      { offset_days: 30, channel: 'whatsapp' as const, active: true },
+      { offset_days: 14, channel: 'email' as const, active: true },
+      { offset_days: 3, channel: 'internal' as const, active: true },
+    ];
+    const result = saveIntervention(db, { ...input(), performed_date: data }, reguli, TODAY);
+    expect(result.followup.due_date < TODAY).toBe(true);
+    expect(result.remindersCreated).toBe(0);
+    expect(db.all('SELECT * FROM reminders')).toEqual([]);
+    expect(db.get('SELECT COUNT(*) AS n FROM interventions')).toEqual({ n: 1 });
+    expect(db.get('SELECT due_date, status FROM followups')).toEqual({ due_date: result.followup.due_date, status: 'pending' });
+  });
+
+  it('scadența de azi încă generează remindere la 09:00, la limita dintre trecut și viitor', () => {
+    const result = saveIntervention(db, { ...input(), performed_date: '2026-05-13' }, defaultReminderRules, TODAY);
+    expect(result.followup.due_date).toBe(TODAY);
+    expect(result.remindersCreated).toBe(3);
+    expect(db.all('SELECT scheduled_at FROM reminders')).toEqual(
+      Array.from({ length: 3 }, () => ({ scheduled_at: `${TODAY} 09:00:00` })),
+    );
+  });
+
   it('face ROLLBACK complet dacă un pas eșuează', () => {
     // Forțăm eșec: serviciu inexistent încalcă FK la inserarea follow-up-ului.
     expect(() =>

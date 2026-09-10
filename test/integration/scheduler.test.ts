@@ -32,6 +32,7 @@ import { AppContext } from '../../src/main/app-context';
 import { SchedulerService } from '../../src/main/services/scheduler.service';
 import { NotificationService } from '../../src/main/services/notification.service';
 import { MessagingService } from '../../src/main/services/messaging/messaging.service';
+import { SmtpEmailProvider } from '../../src/main/services/messaging/email.provider';
 import { SecretsService } from '../../src/main/services/secrets.service';
 import { saveIntervention } from '../../src/main/domain/followup-engine';
 import { defaultReminderRules } from '../../src/shared/schemas/reminder';
@@ -56,13 +57,13 @@ describe('SchedulerService — remindere scadente și restante', () => {
     ids = seedBasics(db);
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
   function setup(nowIso: string) {
     const ctx = makeCtx(db, () => new Date(nowIso));
     const notifications = new NotificationService(ctx);
     const showSpy = vi.spyOn(notifications, 'show').mockImplementation(() => {});
-    const messaging = new MessagingService(ctx, new SecretsService(ctx.settings));
+    const messaging = new MessagingService(ctx, new SecretsService(ctx));
     const scheduler = new SchedulerService(ctx, notifications, messaging);
     return { ctx, scheduler, showSpy };
   }
@@ -226,6 +227,53 @@ describe('SchedulerService — remindere scadente și restante', () => {
 
     const r30 = db.get<{ status: string }>(`SELECT status FROM reminders WHERE offset_days = 30`);
     expect(r30!.status).toBe('cancelled');
+  });
+
+  it('REGRESIE P0: emailul automat păstrează corpul complet pentru retrimitere', async () => {
+    intervention('2026-08-13', '2026-08-13');
+    db.run("UPDATE reminders SET channel = 'email' WHERE offset_days = 30");
+    const { scheduler } = setup('2026-10-14T10:00:00');
+    const mesaj = `${'Detalii complete despre programare. '.repeat(30)}Semnătura firmei.`;
+    db.run("UPDATE message_templates SET body = ? WHERE channel = 'email'", mesaj);
+    const trimite = vi.spyOn(SmtpEmailProvider.prototype, 'send').mockResolvedValue({ ok: false, error: 'Eroare SMTP simulată' });
+    await scheduler.tick(false);
+    expect(trimite).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ body: mesaj }));
+    expect(db.get("SELECT message_preview FROM message_logs WHERE channel = 'email'")).toEqual({ message_preview: mesaj });
+  });
+
+  it.each(['dezactivate', 'șterse', 'doar spații'] as const)('REGRESIE P1: șabloane email %s nu trimit un corp gol și ajung la failed după trei încercări', async (caz) => {
+    intervention('2026-08-13', '2026-08-13');
+    db.run("UPDATE reminders SET channel = 'email' WHERE offset_days = 30");
+    const { ctx, scheduler } = setup('2026-10-14T10:00:00');
+    const setari = ctx.settings.get();
+    ctx.settings.save({ ...setari, smtp: { ...setari.smtp, host: 'smtp.invalid' } });
+    if (caz === 'dezactivate') db.run("UPDATE message_templates SET active = 0 WHERE channel = 'email'");
+    if (caz === 'șterse') db.run("DELETE FROM message_templates WHERE channel = 'email'");
+    if (caz === 'doar spații') db.run("UPDATE message_templates SET body = '   ' WHERE channel = 'email'");
+    const trimite = vi.spyOn(SmtpEmailProvider.prototype, 'send').mockResolvedValue({ ok: true });
+    const eroare = caz === 'doar spații' ? 'produce un mesaj gol' : 'niciun șablon activ pe canalul email';
+    for (let incercare = 1; incercare <= 3; incercare++) {
+      await scheduler.tick(false);
+      expect(trimite).not.toHaveBeenCalled();
+      expect(db.get("SELECT status, attempt_count, error_message FROM reminders WHERE channel = 'email'"))
+        .toEqual({ status: incercare === 3 ? 'failed' : 'pending', attempt_count: incercare, error_message: expect.stringContaining(eroare) });
+    }
+    expect(db.get('SELECT COUNT(*) AS n FROM message_logs')).toEqual({ n: 0 });
+  });
+
+  it('REGRESIE P1: activarea unui șablon înainte de retry permite numai emailul cu conținut', async () => {
+    intervention('2026-08-13', '2026-08-13');
+    db.run("UPDATE reminders SET channel = 'email' WHERE offset_days = 30");
+    db.run("UPDATE message_templates SET active = 0 WHERE channel = 'email'");
+    const { scheduler } = setup('2026-10-14T10:00:00');
+    const trimite = vi.spyOn(SmtpEmailProvider.prototype, 'send').mockResolvedValue({ ok: true });
+    await scheduler.tick(false);
+    expect(trimite).not.toHaveBeenCalled();
+    db.run("UPDATE message_templates SET active = 1, body = 'Bună ziua, programăm intervenția.' WHERE channel = 'email'");
+    await scheduler.tick(false);
+    expect(trimite).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ body: 'Bună ziua, programăm intervenția.' }));
+    expect(db.get("SELECT status, attempt_count FROM reminders WHERE channel = 'email'"))
+      .toEqual({ status: 'sent', attempt_count: 2 });
   });
 
   it('email eșuat: retry până la limita de 3, apoi failed (spec #42)', async () => {

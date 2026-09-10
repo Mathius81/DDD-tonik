@@ -55,6 +55,14 @@ describe('Constructorul Covoare — comenzi și suprafețe reale', () => {
     expect(raport.isEmpty).toBe(false);
   });
 
+  it.each(['dimineata', 'seara'] as const)('REGRESIE P3: suma SQLite 6.99 + 4.39 apare ca 11.38 mp în raportul de %s', (perioada) => {
+    comanda('Suprafață fracționară', 'gata', '2026-08-14', '2026-08-15', { dimensiuni: [[6.99, 1], [4.39, 1]] });
+    expect(baza.ctx.carpetOrders.listByStatus('gata', 20)[0].total_sqm).toBe(11.379999999999999);
+    const raport = buildCovoareReport(baza.ctx, '2026-08-14', perioada);
+    expect(raport.body).toContain('2 covoare, 11.38 mp');
+    expect(raport.body).not.toContain('11.379999999999999');
+  });
+
   it('comanda fără covoare și clientul fără nume/telefon nu dispar și nu produc null sau NaN în raport', () => {
     comanda('', 'gata', '2026-08-12', null, { dimensiuni: [] });
     const raport = buildCovoareReport(baza.ctx, '2026-08-14', 'dimineata');

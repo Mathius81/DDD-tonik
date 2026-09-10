@@ -9,6 +9,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { format } from 'date-fns';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { app, shell } from 'electron';
 import { handle, UserFacingError } from './register';
@@ -103,7 +104,7 @@ function readLastBackup(ctx: AppContext): AboutBackupSummary | null {
   const stat = fs.statSync(path.join(dir, files[0]));
   return {
     name: files[0],
-    createdAt: stat.mtime.toISOString().replace('T', ' ').slice(0, 19),
+    createdAt: format(stat.mtime, 'yyyy-MM-dd HH:mm:ss'),
     sizeBytes: stat.size,
   };
 }

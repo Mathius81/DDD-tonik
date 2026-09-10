@@ -9,7 +9,7 @@
  */
 import type { BrowserWindow } from 'electron';
 import { Db } from './db/database';
-import { runMigrations, currentSchemaVersion } from './db/migrations';
+import { runMigrations, currentSchemaVersion, migrations } from './db/migrations';
 import { registerAllIpcHandlers } from './ipc';
 import { recordAppRun } from './ipc/about.ipc';
 import { AppContext } from './app-context';
@@ -50,7 +50,7 @@ export async function bootstrap(boot: BootstrapContext): Promise<BootstrapResult
 
   // Backup de siguranță înaintea migrațiilor, dacă baza există deja (spec #49, #68).
   const version = safeSchemaVersion(db);
-  const pendingMigrations = version >= 0;
+  const pendingMigrations = version < migrations[migrations.length - 1].version;
   if (pendingMigrations && version > 0) {
     try {
       await backups.create();
@@ -64,8 +64,8 @@ export async function bootstrap(boot: BootstrapContext): Promise<BootstrapResult
   if (applied.length) boot.logger.info(`Migrații aplicate: ${applied.join(', ')}`);
   boot.logger.info(`Schema DB versiunea ${currentSchemaVersion(db)}`);
 
-  const license = new LicenseService(ctx.settings, boot.logger);
-  const secrets = new SecretsService(ctx.settings);
+  const license = new LicenseService(ctx, boot.logger);
+  const secrets = new SecretsService(ctx);
   const messaging = new MessagingService(ctx, secrets);
   const notifications = new NotificationService(ctx);
   const digest = new DailyDigestService(ctx, messaging, notifications);

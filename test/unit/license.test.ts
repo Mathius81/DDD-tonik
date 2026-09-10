@@ -72,7 +72,7 @@ describe('LicenseService', () => {
   afterEach(() => cleanup());
 
   const service = (nowIso: string) =>
-    new TestLicenseService(settings, silentLogger, () => new Date(nowIso));
+    new TestLicenseService({ settings }, silentLogger, () => new Date(nowIso));
 
   it('fără cheie → missing', () => {
     expect(service('2026-08-14T10:00:00').check().status).toBe('missing');

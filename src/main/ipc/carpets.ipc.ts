@@ -47,12 +47,12 @@ export function buildCarpetClientSituationMessage(group: CarpetClientGroup, comp
     'Situația comenzilor dumneavoastră:',
   ];
   for (const o of group.open_orders) {
-    const itemsPart = `${pluralRo(o.items.length, 'covor', 'covoare')} (${o.total_sqm} mp)`;
+    const itemsPart = `${pluralRo(o.items.length, 'covor', 'covoare')} (${Math.round(o.total_sqm * 100) / 100} mp)`;
     const statusLabel = carpetOrderStatusLabels[o.status].toLowerCase();
     const duePart = o.due_date ? `, termen ${formatRo(o.due_date)}` : '';
     lines.push(`• ${itemsPart} — ${statusLabel}${duePart}`);
   }
-  lines.push('', `Total: ${pluralRo(group.total_open_items, 'covor', 'covoare')}, ${group.total_open_sqm} mp.`);
+  lines.push('', `Total: ${pluralRo(group.total_open_items, 'covor', 'covoare')}, ${Math.round(group.total_open_sqm * 100) / 100} mp.`);
   if (companyPhone) lines.push('', `Pentru ridicare ne puteți contacta la ${companyPhone}.`);
   return lines.join('\n');
 }
@@ -209,7 +209,7 @@ export function registerCarpetHandlers(ctx: AppContext): void {
     ctx.carpetMessages.insertLog({
       client_id: client.id,
       recipient: client.phone,
-      message_preview: message.slice(0, 500),
+      message_preview: message,
     });
     ctx.logger.info(`WhatsApp asistat deschis pentru client covoare #${client.id}`);
     return { opened: true };

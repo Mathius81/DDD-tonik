@@ -11,7 +11,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('electron', () => ({ ipcMain: { handle: vi.fn() } }));
+vi.mock('electron', () => ({
+  ipcMain: { handle: vi.fn() },
+  safeStorage: {
+    isEncryptionAvailable: () => true,
+    encryptString: (valoare: string) => Buffer.from(valoare),
+    decryptString: (valoare: Buffer) => valoare.toString(),
+  },
+}));
 // SQLite rămâne REAL, inclusiv API-ul de backup în toate testele de succes.
 // Doar eroarea de disc plin este injectată la granița I/O; nu umplem discul gazdei.
 vi.mock('node:sqlite', async (importOriginal) => {
@@ -23,6 +30,9 @@ import { backup, DatabaseSync } from 'node:sqlite';
 import { creeazaContextTest } from '../helpers/app-context';
 import { seedBasics } from '../helpers/tmp-db';
 import { BackupService } from '../../src/main/services/backup.service';
+import { LicenseService } from '../../src/main/services/license.service';
+import { SecretsService } from '../../src/main/services/secrets.service';
+import { MessagingService } from '../../src/main/services/messaging/messaging.service';
 import type { BackupSettings } from '../../src/shared/schemas/settings';
 import { Db } from '../../src/main/db/database';
 import { migrations, runMigrations } from '../../src/main/db/migrations';
@@ -338,6 +348,43 @@ describe('BackupService — copii reale, retenție, restaurare și erori I/O izo
     expect(() => baza.ctx.settings.get()).not.toThrow();
     expect(() => baza.ctx.db.get('SELECT name FROM associations')).not.toThrow();
     expect(baza.ctx.db.get('SELECT name FROM associations')).toEqual({ name: 'Asociația Bloc A7' });
+  });
+
+  it.each(['licență', 'secrete'] as const)('REGRESIE P0: %s funcționează fără repornire după restaurarea eșuată cu recuperare', async (caz) => {
+    const { ctx } = baza;
+    const setariInitiale = ctx.settings;
+    // Instanțele există deja, ca la bootstrap; nu le reconstruim după restaurare.
+    const licenta = new LicenseService(ctx, ctx.logger, ctx.now);
+    const secrete = new SecretsService(ctx);
+    const mesagerie = new MessagingService(ctx, secrete);
+    // Verificarea semnăturii are teste proprii; aici verificăm accesul la SQLite.
+    vi.spyOn(licenta, 'parseToken').mockReturnValue('2027-08-14');
+    licenta.activate('cheie-fictivă-pentru-test');
+    secrete.set('smtp_password', 'parolă-fictivă-veche');
+    const sursa = await serviciu.create();
+    secrete.set('smtp_password', 'parolă-fictivă-actuală');
+    const eroare = discPlin();
+    vi.spyOn(fs, 'copyFileSync').mockImplementation(() => { throw eroare; });
+    const apeluri = restaurare();
+
+    await expect(serviciu.restore(sursa.name, apeluri.redeschide, apeluri.reporneste)).rejects.toBe(eroare);
+    expect(apeluri.reporneste).not.toHaveBeenCalled();
+    // Comparăm identitatea fără ca Vitest să inspecteze handle-ul SQLite închis.
+    expect(ctx.settings === setariInitiale).toBe(false);
+    expect(() => setariInitiale.get()).toThrow();
+    if (caz === 'licență') {
+      expect(licenta.check()).toMatchObject({ status: 'valid', expiresAt: '2027-08-14' });
+      expect(licenta.activate('cheie-fictivă-nouă').status).toBe('valid');
+      expect(ctx.settings.getRaw('license_token')).toBe('cheie-fictivă-nouă');
+    } else {
+      expect(secrete.get('smtp_password')).toBe('parolă-fictivă-actuală');
+      expect(() => mesagerie.emailProvider()).not.toThrow();
+      expect(() => mesagerie.whatsappProvider()).not.toThrow();
+      secrete.set('whatsapp_access_token', 'token-fictiv');
+      expect(secrete.get('whatsapp_access_token')).toBe('token-fictiv');
+      secrete.delete('smtp_password');
+      expect(secrete.get('smtp_password')).toBeNull();
+    }
   });
 
   // Integritatea SQLite singură nu dovedește că fișierul aparține aplicației Tonik.

@@ -303,6 +303,7 @@ describe('buildAdministratorSituationMessage — text agregat (toate asociațiil
     phone: '40722111222',
     phone_display: '0722111222',
     display_name: 'Ion Popescu',
+    do_not_contact: false,
     names: ['Ion Popescu'],
     associations: [
       {
@@ -358,6 +359,7 @@ describe('buildAdministratorSituationMessage — și ce s-a făcut, nu doar ce u
     phone: '40722111222',
     phone_display: '0722111222',
     display_name: 'Ion Popescu',
+    do_not_contact: false,
     names: ['Ion Popescu'],
     associations: [
       {
@@ -548,6 +550,32 @@ describe('administrators.ipc — handlere', () => {
     expect(log!.contact_id).toBe(c1);
     expect(log!.message_preview).toBe(mesajEditat);
     expect(log!.status).toBe('prepared');
+  });
+
+  it.each(['primul contact', 'altă asociație', 'duplicat mai vechi'] as const)('REGRESIE P2: „Nu contacta” pe %s blochează trimiterea agregată, inclusiv după previzualizare', async (caz) => {
+    const { a1, c1, c2 } = seed();
+    const preview = await invoke<{ body: string }>(IPC.administrators.preview, { phone: '0722111222' });
+    expect(preview.ok).toBe(true);
+    const blocat = caz === 'duplicat mai vechi' ? seedContact(db, a1, 'Contact vechi', '+40 722 111 222') : caz === 'altă asociație' ? c2 : c1;
+    db.run("UPDATE contacts SET do_not_contact = 1, updated_at = '2020-01-01 00:00:00' WHERE id = ?", blocat);
+    const grup = ctx.contacts.getAdministratorGroupByPhone('0040722111222', TODAY)!;
+    expect(grup.do_not_contact).toBe(true);
+    expect(grup.associations_count).toBe(2);
+    if (caz === 'duplicat mai vechi') expect(grup.associations[0].contact_id).toBe(c1);
+    const result = await invoke(IPC.administrators.whatsapp.send, { phone: '0040722111222', message: 'Situația completă' });
+    expect(result).toEqual({ ok: false, error: 'Contactul este marcat „Nu contacta”.' });
+    expect(shell.openExternal).not.toHaveBeenCalled();
+    expect(db.get('SELECT COUNT(*) AS n FROM message_logs')).toEqual({ n: 0 });
+  });
+
+  it('un contact șters marcat „Nu contacta” nu blochează contactele active ale grupului', async () => {
+    const { a1 } = seed();
+    const vechi = seedContact(db, a1, 'Contact șters', '0722111222');
+    db.run("UPDATE contacts SET do_not_contact = 1, deleted_at = '2026-01-01 00:00:00' WHERE id = ?", vechi);
+    expect(ctx.contacts.getAdministratorGroupByPhone('0722111222', TODAY)?.do_not_contact).toBe(false);
+    const result = await invoke(IPC.administrators.whatsapp.send, { phone: '0722111222', message: 'Situația completă' });
+    expect(result).toEqual({ ok: true, data: { opened: true } });
+    expect(shell.openExternal).toHaveBeenCalledTimes(1);
   });
 
   it('administrators:whatsapp:send eșuează clar dacă telefonul nu corespunde niciunui contact', async () => {

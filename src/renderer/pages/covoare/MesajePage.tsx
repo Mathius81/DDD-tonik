@@ -15,7 +15,7 @@ import { ddd } from '../../api/ddd';
 import { useIpcQuery, unwrap, runMutation } from '../../api/useIpc';
 import { EmptyState } from '../../components/EmptyState';
 import { PageHeader } from '../../components/PageHeader';
-import { fmtDateTime } from '../../components/dateUtils';
+import { fmtUtcDateTime } from '../../components/dateUtils';
 import { defaultClientWhatsappMessage } from './covoare-ui';
 import type { CarpetClientListItem, CarpetMessageLogItem } from '../../../shared/schemas/carpet';
 import type { Paginated } from '../../../shared/schemas/common';
@@ -162,7 +162,7 @@ export function MesajePage() {
                 width: 150,
                 render: (m) => (
                   <Text size="var(--fs-small)" className="tonik-num" c="var(--text-muted)">
-                    {fmtDateTime(m.created_at)}
+                    {fmtUtcDateTime(m.created_at)}
                   </Text>
                 ),
               },

@@ -88,7 +88,7 @@ describe('about.ipc', () => {
     appRootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ddd-about-root-'));
 
     ctx = new AppContext(db, paths, silentLogger, () => null, () => new Date('2026-08-20T09:00:00'));
-    license = new LicenseService(ctx.settings, silentLogger, ctx.now);
+    license = new LicenseService(ctx, silentLogger, ctx.now);
 
     electronMock.handlers.clear();
     vi.mocked(app.getVersion).mockClear();
@@ -193,6 +193,22 @@ describe('about.ipc', () => {
       if (!result.ok) return;
       expect(result.data.lastBackup?.name).toBe('ddd-manager-2026-08-19.sqlite');
       expect(result.data.lastBackup?.sizeBytes).toBe(3);
+    });
+
+    it.each([
+      ['2026-09-10T21:30:00Z', '2026-09-11 00:30:00'],
+      ['2026-01-10T21:30:00Z', '2026-01-10 23:30:00'],
+    ])('REGRESIE P2: ultimul backup din Despre afișează ora locală pentru %s', async (utc, local) => {
+      vi.stubEnv('TZ', 'Europe/Bucharest');
+      try {
+        const fisier = path.join(paths.backupsDir, 'ddd-manager-test-local.sqlite');
+        fs.writeFileSync(fisier, 'copie de test');
+        fs.utimesSync(fisier, new Date(utc), new Date(utc));
+        const result = await invoke<AboutDiagnostics>(IPC.about.diagnostics);
+        expect(result.ok).toBe(true);
+        if (!result.ok) throw new Error(result.error);
+        expect(result.data.lastBackup?.createdAt).toBe(local);
+      } finally { vi.unstubAllEnvs(); }
     });
 
     it('citește doar ultimele linii ERROR din logul zilei curente', async () => {
@@ -485,7 +501,7 @@ describe('about.ipc', () => {
       fs.mkdirSync(paths2.backupsDir, { recursive: true });
       fs.mkdirSync(paths2.logsDir, { recursive: true });
       const ctx2 = new AppContext(t2.db, paths2, silentLogger, () => null, () => new Date('2026-08-20T09:00:00'));
-      const license2 = new LicenseService(ctx2.settings, silentLogger, ctx2.now);
+      const license2 = new LicenseService(ctx2, silentLogger, ctx2.now);
       // Suprascrie handlerele mock cu cele ale ctx2, pentru acest apel.
       registerAboutHandlers(ctx2, license2);
 

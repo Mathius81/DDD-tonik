@@ -118,6 +118,7 @@ export function AdministratoriPage() {
                     <Text size="var(--fs-body)" fw={600}>
                       {g.display_name}
                     </Text>
+                    {g.do_not_contact && <StatusBadge tone="danger">Nu contacta</StatusBadge>}
                     {g.names.length > 1 && (
                       <Text size="var(--fs-small)" c="var(--text-muted)">
                         cunoscut și ca: {g.names.filter((n) => n !== g.display_name).join(', ')}

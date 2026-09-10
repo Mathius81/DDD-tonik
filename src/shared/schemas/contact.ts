@@ -100,6 +100,8 @@ export interface AdministratorAssociationSummary {
 
 /** Un administrator (identificat după telefon normalizat) cu toate asociațiile lui. */
 export interface AdministratorGroup {
+  /** Orice contact nedeletat cu acest telefon poate interzice contactarea grupului. */
+  do_not_contact: boolean;
   /** Telefon normalizat E.164 fără '+' — cheie stabilă a grupului. */
   phone: string;
   /** Telefonul așa cum a fost scris ultima dată (pentru afișare + wa.me). */

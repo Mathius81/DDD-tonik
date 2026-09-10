@@ -224,7 +224,7 @@ export class TyreSeasonReminderService {
       season: client.season,
       season_key: this.seasonKeyFor(client.season),
       recipient: client.client_phone,
-      message_preview: body.slice(0, 500),
+      message_preview: body,
       status: result.ok ? 'sent' : 'failed',
       error_message: result.ok ? null : (result.error ?? null),
       created_at: this.ctx.nowLocalIso(),

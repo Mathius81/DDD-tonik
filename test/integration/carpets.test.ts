@@ -881,6 +881,21 @@ describe('carpets.ipc — handlere clientSituation', () => {
     expect(result.data.body).toContain('0722000000');
   });
 
+  it('REGRESIE P3: situația WhatsApp afișează suma reală SQLite rotunjită la două zecimale', async () => {
+    const clientId = clients.create({ name: 'Client Test', phone: '0712345678', address: null, notes: null }).id;
+    orders.create({
+      client_id: clientId, client_name: null, client_phone: null, client_address: null, client_notes: null,
+      pickup_date: '2026-08-10', due_date: null, status: 'gata', price_per_sqm: null, notes: null,
+      items: [{ type: 'covor', length_m: 6.99, width_m: 1 }, { type: 'covor', length_m: 4.39, width_m: 1 }],
+    });
+    expect(orders.getClientGroup(clientId)!.open_orders[0].total_sqm).toBe(11.379999999999999);
+    const result = await invoke<{ body: string }>(IPC.carpets.clientSituation.preview, { client_id: clientId });
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.body).toContain('2 covoare (11.38 mp)');
+    expect(result.data.body).toContain('Total: 2 covoare, 11.38 mp.');
+    expect(result.data.body).not.toContain('11.379999999999999');
+  });
+
   it('carpets:clientSituation:preview eșuează clar dacă clientul nu are nicio comandă deschisă', async () => {
     const clientId = clients.create({ name: 'Client Fără Comenzi', phone: '0711111111', address: null, notes: null }).id;
     orders.create({

@@ -1412,7 +1412,7 @@ describe('TyreSeasonReminderService — trimitere automată (mod cloud_api), o s
   function makeService(nowIso: string) {
     let current = new Date(nowIso);
     const ctx = new AppContext(db, paths, silentLogger, () => null, () => current);
-    const messaging = new MessagingService(ctx, new SecretsService(ctx.settings));
+    const messaging = new MessagingService(ctx, new SecretsService(ctx));
     const notifications = new NotificationService(ctx);
     const service = new TyreSeasonReminderService(ctx);
     const setNow = (iso: string) => {

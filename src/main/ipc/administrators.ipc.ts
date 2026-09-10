@@ -97,6 +97,8 @@ export function registerAdministratorHandlers(ctx: AppContext): void {
     const group = ctx.contacts.getAdministratorGroupByPhone(phone, ctx.todayIso());
     if (!group) throw new UserFacingError('Nu am găsit nicio persoană cu acest telefon.');
 
+    if (group.do_not_contact) throw new UserFacingError('Contactul este marcat „Nu contacta”.');
+
     const normalizedPhone = normalizePhoneE164(group.phone_display) ?? group.phone;
     const url = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
     await shell.openExternal(url);
@@ -105,7 +107,8 @@ export function registerAdministratorHandlers(ctx: AppContext): void {
     // singure asociații, dar rândul din `message_logs` tot trebuie ancorat de ceva, ca să
     // nu fie „orfan” în pagina Mesaje. Folosim PRIMA asociație din grup (sortate alfabetic
     // în `contacts.repo.ts`) și contactul ei concret — textul complet, cu TOATE
-    // asociațiile, rămâne oricum salvat integral în `message_preview`.
+    // asociațiile, se salvează FĂRĂ trunchiere în coloana istorică `message_preview`,
+    // deoarece „Retrimite” folosește acest corp, nu reconstruiește situația curentă.
     const firstAssociation = group.associations[0];
 
     const log = ctx.messages.insertLog({
@@ -116,7 +119,7 @@ export function registerAdministratorHandlers(ctx: AppContext): void {
       channel: 'whatsapp',
       recipient: group.phone_display,
       template_id: null,
-      message_preview: message.slice(0, 500),
+      message_preview: message,
       status: 'prepared',
     });
     ctx.logger.info(
